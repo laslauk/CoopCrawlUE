@@ -4,13 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include "./CrawlCommonTypes.h"
+#include "CrawlCommonTypes.h"
 #include "CharacterAnimDataAsset.generated.h"
 
 /**
  * 
  */
-UCLASS()
+UCLASS(Blueprintable)
 class LASDC_API UCharacterAnimDataAsset : public UDataAsset
 {
 	GENERATED_BODY()

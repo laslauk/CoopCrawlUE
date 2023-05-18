@@ -23,6 +23,8 @@ public:
 	// Sets default values for this character's properties
 	AAICharacterBaseGAS();
 
+//	virtual void PawnClientRestart() override;
+
 
 protected:
 	// Called when the game starts or when spawned

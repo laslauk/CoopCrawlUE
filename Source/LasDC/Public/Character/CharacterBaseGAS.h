@@ -52,7 +52,7 @@ protected:
 
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "CharacterBase")
-		UAbilitySystemComponent* AbilitySystemComponent;
+		UAbilitySystemComponent* AbilitySystemComp;
 
 	UPROPERTY(Transient)
 		UAttributeSetBase* AttributeSetBaseComp;
@@ -109,8 +109,21 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "CharacterBase")
 	void BP_HealthChanged(float newHealth, float MaxHealth);
 
+
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "CharacterInput")
+	void BP_OnPrimaryInputAction();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "CharacterInput")
+	void BP_OnSecondaryInputAction();
+
+	UFUNCTION(BlueprintCallable, Category = "CharacterInput")
+	void TryJump();
+
 	//UFUNCTION(BlueprintImplementableEvent, Category = "CharacterBase")
 	//void BP_MaxHealthChanged(float newHealth);
+
+	void Landed(const FHitResult& Hit) override;
 
 	
 	// ~ Server - PC and PS Valid
@@ -129,6 +142,10 @@ public:
 
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	 class UFootstepsComponent* GetFootStepsComponent() const;
+
+
+
 protected:
 	UPROPERTY(ReplicatedUsing = OnRep_CharacterData)
 		FCharacterData CharacterData;
@@ -140,5 +157,33 @@ protected:
 
 		UPROPERTY(EditDefaultsOnly)
 		class UCharacterDataAsset* CharacterDataAsset;
+
+public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "CharacterBase")
+	class UFootstepsComponent* FootstepsCom;
+
+	
+	//virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	//Enhanced input
+
+
+
+	//Gameplay events
+
+
+	protected:
+		UPROPERTY(EditDefaultsOnly)
+		FGameplayTag JumpEventTag;
+
+		UPROPERTY(EditDefaultsOnly)
+		FGameplayTagContainer InAirTags;
+
+		//Gameplay tags
+
+
+
+	
+
+
 
 };

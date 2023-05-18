@@ -9,7 +9,7 @@ public class LasDC : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "LasDC", "InputCore", "GameplayAbilities", "GameplayTags", "GameplayTasks", "HeadMountedDisplay", "EnhancedInput" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "NetCore", "Engine", "LasDC", "InputCore", "GameplayAbilities", "GameplayTags", "GameplayTasks", "HeadMountedDisplay", "EnhancedInput" });
 
 		PublicIncludePaths.AddRange(new string[] { 
 			Path.Combine(ModuleDirectory, "Public/Character"), 

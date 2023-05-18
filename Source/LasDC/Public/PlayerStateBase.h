@@ -6,6 +6,7 @@
 #include "AbilitySystemInterface.h"
 #include "Abilities/GameplayAbility.h"
 #include "AbilitySystemComponent.h"
+#include "InventoryComp.h"
 #include "GameFramework/PlayerState.h"
 #include "PlayerStateBase.generated.h"
 
@@ -35,12 +36,12 @@ public:
 	//	UFUNCTION(BlueprintCallable, Category = "CharacterBase")
 	//	void AcquireAbility(TSubclassOf<UGameplayAbility> AbilityToAcquire);
 		UPROPERTY()
-		UAbilitySystemComponent* AbilitySystemComp;
+		UAbilitySystemComponent* ASC;
 
 		UPROPERTY()
 		class UAttributeSetBase* AttributeSetBaseComp;
 
-		UPROPERTY()
+		UPROPERTY(EditAnywhere, Replicated)
 		ACharacter* playerCharacterRef;
 
 
@@ -68,6 +69,14 @@ public:
 		//atribute change callbacks
 		virtual void HealthChanged(const FOnAttributeChangeData& Data);
 		virtual void MaxHealthChanged(const FOnAttributeChangeData& Data);
+
+
+public:
+
+		virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty> & OutLifetimeProps) const override;
+
+		UPROPERTY(EditAnywhere, Replicated)
+		 UInventoryComp* InventoryComp = nullptr;
 
 
 	//	UFUNCTION(BlueprintCallable, Category = "PlayerStateBase")

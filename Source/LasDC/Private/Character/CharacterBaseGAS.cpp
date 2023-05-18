@@ -5,10 +5,16 @@
 #include "PlayerStateBase.h"
 #include "AbilitySystemComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "InventoryItemInstance.h"
+
 #include "Components/CapsuleComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
+#include "InventoryList.h"
+#include "CrawlCommonTypes.h"
 #include "CharacterMovementComponentBase.h"
+#include "FootstepsComponent.h"
 #include "CharacterDataAsset.h"
+#include "FootstepsComponent.h"
 #include "AttributeSetBase.h"
 
 
@@ -18,7 +24,7 @@ ACharacterBaseGAS::ACharacterBaseGAS()
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 //	PrimaryActorTick.bCanEverTick = true;
-//	bReplicates = true;
+	bReplicates = true;
 	//bAlwaysRelevant = true;
 	//AbilitySystemComp = CreateDefaultSubobject<UAbilitySystemComponent>("AbilitySystemComp");
 	//AbilitySystemComp->SetIsReplicated(true);
@@ -26,7 +32,7 @@ ACharacterBaseGAS::ACharacterBaseGAS()
 	//Subscribe to Delegates
 	//AttributeSetBaseComponent->OnHealthChange.AddDynamic(this, &ACharacterBaseGAS::OnHealthChanged);
 
-
+	FootstepsCom = CreateDefaultSubobject<UFootstepsComponent>(TEXT("FootstepsCom"));
 
 }
 
@@ -39,6 +45,14 @@ ACharacterBaseGAS::ACharacterBaseGAS(const FObjectInitializer& ObjectInitializer
 
 }
 
+//void ACharacterBaseGAS::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) {
+
+
+
+
+
+//}
+
 
 void ACharacterBaseGAS::Die() {
 	// Only runs on Server
@@ -48,9 +62,40 @@ void ACharacterBaseGAS::Die() {
 	GetMesh()->SetHiddenInGame(true);
 
 }
+/*
+ void ACharacterBaseGAS::PawnClientRestart()  {
+
+}
+ */
+
+UFootstepsComponent* ACharacterBaseGAS::GetFootStepsComponent() const {
+
+	return FootstepsCom;
+}
 
 void ACharacterBaseGAS::ResposneToLasseDelegate(float a, float b) {
 	UE_LOG(LogTemp, Warning, TEXT("Hello: %f, %f"), a, b);
+}
+
+void ACharacterBaseGAS::Landed(const FHitResult& Hit) {
+	Super::Landed(Hit);
+	if (AbilitySystemComp) {
+
+		AbilitySystemComp->RemoveActiveEffectsWithTags(InAirTags);
+
+
+
+	}
+}
+
+
+void ACharacterBaseGAS::TryJump() {
+	FGameplayEventData Payload;
+	Payload.Instigator = this;
+	Payload.EventTag = JumpEventTag;
+
+	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(this, JumpEventTag, Payload);
+
 }
 
 void ACharacterBaseGAS::InitPlayer() {
@@ -61,9 +106,9 @@ void ACharacterBaseGAS::InitPlayer() {
 
 void ACharacterBaseGAS::GiveAbilities() {
 	
-	if (HasAuthority() && AbilitySystemComponent) {
+	if (HasAuthority() && AbilitySystemComp) {
 		for (auto DefaultAbility : CharacterData.Abilities) {
-			AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(DefaultAbility));
+			AbilitySystemComp->GiveAbility(FGameplayAbilitySpec(DefaultAbility));
 		}
 	}
 
@@ -72,7 +117,7 @@ void ACharacterBaseGAS::GiveAbilities() {
 void ACharacterBaseGAS::ApplyStartupEffects() {
 
 	if (GetLocalRole() == ROLE_Authority) {
-		FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+		FGameplayEffectContextHandle EffectContext = AbilitySystemComp->MakeEffectContext();
 		EffectContext.AddSourceObject(this);
 
 		for (auto CharEffect : CharacterData.Effects) {
@@ -89,10 +134,10 @@ bool ACharacterBaseGAS::ApplyGameplayEffectToSelf(TSubclassOf<UGameplayEffect> g
 
 	if (!gameplayEffect.Get()) return false;
 
-	FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(gameplayEffect, 1, IneffectContext);
+	FGameplayEffectSpecHandle SpecHandle = AbilitySystemComp->MakeOutgoingSpec(gameplayEffect, 1, IneffectContext);
 	if (SpecHandle.IsValid()) {
 
-		FActiveGameplayEffectHandle ActiveGEHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+		FActiveGameplayEffectHandle ActiveGEHandle = AbilitySystemComp->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 		return ActiveGEHandle.WasSuccessfullyApplied();
 
 
@@ -117,16 +162,18 @@ void ACharacterBaseGAS::PossessedBy(AController* NewController) {
 	UE_LOG(LogTemp, Warning, TEXT("bbbbbbbb"));
 
 	APlayerStateBase* PS = GetPlayerState<APlayerStateBase>();
+
 	if (PS)
 	{
+		PS_ref = PS;
 
 		// Set the ASC on the Server. Clients do this in OnRep_PlayerState()
-		AbilitySystemComponent = Cast<UAbilitySystemComponent>(PS->GetAbilitySystemComponent());
-		if(AbilitySystemComponent) {
+		AbilitySystemComp = Cast<UAbilitySystemComponent>(PS->GetAbilitySystemComponent());
+		if(AbilitySystemComp) {
 		UE_LOG(LogTemp, Warning, TEXT("aaaaaaaaaaaaa"));
 		// AI won't have PlayerControllers so we can init again here just to be sure. No harm in initing twice for heroes that have PlayerControllers.
 		PS->GetAbilitySystemComponent()->InitAbilityActorInfo(PS, this);
-
+		PS->playerCharacterRef = this;
 		AttributeSetBaseComp = PS->GetAttributeSetBase();
 		lassegate.AddUniqueDynamic(PS, &APlayerStateBase::OnGagaGigeli);
 
@@ -137,6 +184,12 @@ void ACharacterBaseGAS::PossessedBy(AController* NewController) {
 
 		BP_AfterPossessedInit();
 		lassegate.Broadcast(666, 777);
+
+		PS->InventoryComp->AddDefaultItem_DEBUG();
+
+
+		PS->InventoryComp->DropItem();
+
 
 		}
 		else {
@@ -151,21 +204,25 @@ void ACharacterBaseGAS::OnRep_PlayerState() {
 
 	Super::OnRep_PlayerState();
 
-	if (AbilitySystemComponent == nullptr) {
+	if (AbilitySystemComp == nullptr) {
 
 		APlayerStateBase* PS = GetPlayerState<APlayerStateBase>();
 		if (PS) {
-
+			PS_ref = PS;
 			//cachce the ASC in th server
 				// Set the ASC for clients. Server does this in PossessedBy.
-			AbilitySystemComponent = Cast<UAbilitySystemComponent>(PS->GetAbilitySystemComponent());
+			AbilitySystemComp = Cast<UAbilitySystemComponent>(PS->GetAbilitySystemComponent());
 
+			if (!AbilitySystemComp) {
+				UE_LOG(LogTemp, Warning, TEXT("Vittu"));
+				return;
+			}
 			//init server side part of the ASC
 			// Init ASC Actor Info for clients. Server will init its ASC when it possesses a new Actor.
-			AbilitySystemComponent->InitAbilityActorInfo(PS, this);
+			AbilitySystemComp->InitAbilityActorInfo(PS, this);
 			AttributeSetBaseComp = PS->GetAttributeSetBase();
 			
-
+			PS->playerCharacterRef = this;
 			//grant abilities
 			//init other components of the character tha tuse ASC here
 		}
@@ -201,6 +258,9 @@ void APlayerCharacterBase::OnRep_Controller() {
 void ACharacterBaseGAS::BeginPlay()
 {
 	Super::BeginPlay();
+
+
+
 	
 }
 
@@ -221,7 +281,7 @@ void ACharacterBaseGAS::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 
 UAbilitySystemComponent* ACharacterBaseGAS::GetAbilitySystemComponent() const {
-	return AbilitySystemComponent;
+	return AbilitySystemComp;
 }
 /*
 void ACharacterBaseGAS::AcquireAbility(TSubclassOf<UGameplayAbility> AbilityToAcquire) {
