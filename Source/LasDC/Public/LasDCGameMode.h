@@ -6,6 +6,9 @@
 #include "GameFramework/GameModeBase.h"
 #include "LasDCGameMode.generated.h"
 
+class APlayerControllerBase;
+
+
 UCLASS(minimalapi)
 class ALasDCGameMode : public AGameModeBase
 {
@@ -13,6 +16,8 @@ class ALasDCGameMode : public AGameModeBase
 
 public:
 	ALasDCGameMode();
+
+	void NotifyPlayerDied(APlayerControllerBase* PlayerController);
 };
 
 

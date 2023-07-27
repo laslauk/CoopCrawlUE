@@ -36,6 +36,8 @@
 
 	 }
 
+
+	 /* Instantiated abilities ?? mitä ne on*/
 	 if (IsInstantiated()) {
 		 for (auto GameplayEffect : OngoingEffectsToRemoveOnEnd) {
 
@@ -64,9 +66,10 @@
 	 }
 
 
-
-
 }
+
+
+
 
  ACharacterBaseGAS* UGameplayAbilityBase::GetCharacterBaseFromActorInfo() const {
 

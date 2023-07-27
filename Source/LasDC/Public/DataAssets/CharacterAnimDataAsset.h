@@ -18,4 +18,7 @@ class LASDC_API UCharacterAnimDataAsset : public UDataAsset
 public:
 	UPROPERTY(EditDefaultsOnly)
 		FCharacterAnimationData CharacterAnimationData;
+
+
+
 };

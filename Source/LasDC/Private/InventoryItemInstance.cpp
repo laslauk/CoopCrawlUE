@@ -5,7 +5,9 @@
 #include "CrawlGameStatics.h"
 #include "CrawlCommonTypes.h"
 #include "Character/CharacterBaseGAS.h"
+#include "AbilitySystemComponent.h"
 
+#include "AbilitySystemBlueprintLibrary.h"
 #include "ItemActorBase.h"
 #include "InventoryList.h"
 #include "Net/UnrealNetwork.h"
@@ -15,21 +17,13 @@ void UInventoryItemInstance::OnRep_Equipped() {
 	//do stuff that not out of box
 }
 
-void UInventoryItemInstance::Init(TSubclassOf<UItemStaticData> InItemStaticDataClass, AActor* owner) {
+void UInventoryItemInstance::Init(TSubclassOf<UItemStaticData> InItemStaticDataClass, AActor* owner, int32 InQuantity) {
 	
 	OwningPlayerState = owner;
-	ItemStaticDataClass = InItemStaticDataClass;
-	
-	/*
-	UItemStaticData* data = ItemStaticDataClass.GetDefaultObject();
-	if (data) {
-		UE_LOG(LogTemp, Warning, TEXT("AFTER inventory instacne static data: %s"), *data->Name.ToString());
+	Quantity = InQuantity;
 
-	}
-	else {
-		UE_LOG(LogTemp, Warning, TEXT("EI SAATU EES DEFAULT OBJ "));
-	}
-	*/
+	UE_LOG(LogTemp, Warning, TEXT("<<<<<<<<This item: %s, inited with ammo count: %d"), *GetName(), Quantity);
+	ItemStaticDataClass = InItemStaticDataClass;
 
 }
 
@@ -37,10 +31,16 @@ void UInventoryItemInstance::Init(TSubclassOf<UItemStaticData> InItemStaticDataC
 
 const UItemStaticData* UInventoryItemInstance::GetItemStaticData() const{
 
-	return UCrawlGameStatics::GetItemStaticData(ItemStaticDataClass);
+	return (UCrawlGameStatics::GetItemStaticData(ItemStaticDataClass));
 
 
  }
+
+AItemActorBase* UInventoryItemInstance::GetItemActor() const {
+
+
+	return ItemActor;
+}
 
 
 
@@ -50,15 +50,19 @@ void UInventoryItemInstance::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 	DOREPLIFETIME(UInventoryItemInstance, ItemStaticDataClass);
 	DOREPLIFETIME(UInventoryItemInstance, bEquipped)
 	DOREPLIFETIME(UInventoryItemInstance, ItemActor)
-		
+	DOREPLIFETIME(UInventoryItemInstance, Quantity)
 
 }
 
-void UInventoryItemInstance::OnDropped() {
+void UInventoryItemInstance::OnDropped(AActor* InOwner) {
 	if (ItemActor) {
+
 		ItemActor->OnDropped();
 		OwningPlayerState = nullptr;
 		bEquipped = false;
+
+		TryRemoveAbilities(InOwner);
+		TryRemoveEffects(InOwner);
 	}
 }
 
@@ -66,46 +70,46 @@ void UInventoryItemInstance::OnEquipped(AActor* InOwner) {
 
 	//lets just spawn item for some reason
 
-
+	if (!InOwner) return;
 	//spawn itm
 
 	if (UWorld* World = InOwner->GetWorld()) {
-		if (InOwner) {
-			UE_LOG(LogTemp, Warning, TEXT("Equiping item for actor: %s"), *InOwner->GetName());
-		}
-		else {
-			UE_LOG(LogTemp, Warning, TEXT("FAILED ONEQUIP"));
-			return;
-		}
-
 
 		const UItemStaticData* StaticData = GetItemStaticData();
 
 		if (StaticData) {
+			FTransform Transform;
+			ItemActor = World->SpawnActorDeferred<AItemActorBase>(StaticData->ItemActorClass, Transform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			ItemActor->Init(this);
+			ItemActor->OnEquipped();
+			ItemActor->FinishSpawning(Transform);
+			if (IsValid(ItemActor))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("!!!!!!!!!! Spawnattiin item actor: %s "), *ItemActor->GetName());
+			}
 
-		FTransform Transform;
-		ItemActor = World->SpawnActorDeferred<AItemActorBase>(StaticData->ItemActorClass, Transform);
-		ItemActor->Init(this);
-		ItemActor->OnEquipped();
+			if (!(StaticData->ItemActorClass))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("!!!!!!!!!!! ON EQUIP ITEM ACTOR CLASS EMPTY IN INVENTORY ITEM INSTANCE"));
+			}
 
-		//Check for skeletal mesh
+			if( ACharacter* Character = Cast <ACharacter>(InOwner))
+			{
 
-
-		ItemActor->FinishSpawning(Transform);
-		ACharacter* Character = Cast <ACharacter>(InOwner);
-
-		if (USkeletalMeshComponent* SkeletalMesh = Character ? Character->GetMesh() : nullptr) {
-
-			ItemActor->AttachToComponent(SkeletalMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, StaticData->WeaponAttachmentSocketName);
-			UE_LOG(LogTemp, Warning, TEXT("Succesfulyl attached item for itemactor: %s"), *ItemActor->GetName());
-
-		
+				if (USkeletalMeshComponent* SkeletalMesh = Character ? Character->GetMesh() : nullptr)
+				{
+					ItemActor->AttachToComponent(SkeletalMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, StaticData->WeaponAttachmentSocketName);
+					UE_LOG(LogTemp, Warning, TEXT("Succesfulyl attached item for itemactor: %s"), *ItemActor->GetName());
+				}
 			}
 		}
+		else {
+			UE_LOG(LogTemp, Warning, TEXT("!!!!!!!!!!!!!!!!!!!!!!!!!!! EI STATIC DATA EQUIP ITEM INSTANCE"));
+		}
+		TryGrantAbilities(InOwner);
+		TryApplyEffects(InOwner);
 	}
-	else {
-		UE_LOG(LogTemp, Warning, TEXT("EI SAAT UWRODL"));
-	}
+	
 
 	bEquipped = true;
 
@@ -113,13 +117,110 @@ void UInventoryItemInstance::OnEquipped(AActor* InOwner) {
  }
 
 
-void UInventoryItemInstance::OnUnequipped() {
+void UInventoryItemInstance::OnUnequipped(AActor* InOwner) {
 
-	if (ItemActor) {
+	if (IsValid(ItemActor)) {
 
 		ItemActor->Destroy();
 		ItemActor = nullptr;
 
 	}
+	TryRemoveAbilities(InOwner);
+	TryRemoveEffects(InOwner);
 	bEquipped = false;
  }
+
+
+void UInventoryItemInstance::TryRemoveAbilities(AActor* InOwner) {
+
+	if (InOwner && InOwner->HasAuthority()) {
+		if (UAbilitySystemComponent* AbilityComponent = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InOwner)) {
+			const UItemStaticData* StaticData = GetItemStaticData();
+			for (auto AbilityHandle : GrantedAbilityHandles) {
+				AbilityComponent->ClearAbility(AbilityHandle);
+			}
+
+			GrantedAbilityHandles.Empty();
+		}
+	}
+
+
+
+
+
+}
+
+
+void UInventoryItemInstance::AddItems(int32 Count)
+{
+	Quantity += Count;
+
+	if (Quantity < 0) {
+		Quantity = 0;
+	}
+
+
+}
+
+
+
+void UInventoryItemInstance::TryGrantAbilities(AActor* InOwner) {
+
+	
+	if (InOwner && InOwner->HasAuthority()) {
+		if (UAbilitySystemComponent* AbilityComponent = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InOwner)) {
+			const UItemStaticData* StaticData = GetItemStaticData();
+			for (auto ItemAbility : StaticData->GrantedAbilities) {
+				GrantedAbilityHandles.Add(AbilityComponent->GiveAbility(FGameplayAbilitySpec(ItemAbility)));
+			}
+		}
+	}
+	
+}
+
+
+/* add Effects on equip */
+void UInventoryItemInstance::TryApplyEffects(AActor* InOwner) {
+
+	if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InOwner)) {
+
+		//item static datassa on effektit mitä lisätään owneriin ku equippataan
+		const UItemStaticData* ItemStaticData = GetItemStaticData();
+
+
+		/* The GameplayEffectContextHandle tells us who created this GameplayEffectSpec. */
+		FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
+
+		for (TSubclassOf<UGameplayEffect> GameplayEffect : ItemStaticData->OngoingEffects) {
+				
+			if (GameplayEffect.Get() == nullptr) continue; //tyhjä effekti
+
+			//Tehään handle specille, speco handle nn iiku isntance handle
+			FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(GameplayEffect, 1, EffectContext);
+
+			if (SpecHandle.IsValid()) {
+				//Applytaan effekti ja otetaan activeGEhandle talteen myöhempää vemppaamista varten
+				FActiveGameplayEffectHandle ActiveGEHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+				if(ActiveGEHandle.WasSuccessfullyApplied()) {
+					OnGoingItemAddedEffectHandles.Add(ActiveGEHandle);
+				}
+			}
+		}
+	}
+}
+
+
+void UInventoryItemInstance::TryRemoveEffects(AActor* inOwner) {
+
+	if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(inOwner)) {
+		for (FActiveGameplayEffectHandle ActiveEffectHandle : OnGoingItemAddedEffectHandles) {
+			if (ActiveEffectHandle.IsValid()) {
+				ASC->RemoveActiveGameplayEffect(ActiveEffectHandle);
+			}
+		}
+	}
+
+	OnGoingItemAddedEffectHandles.Empty();
+
+}

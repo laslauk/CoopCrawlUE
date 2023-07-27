@@ -6,6 +6,8 @@
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "PhysicalMaterialBase.generated.h"
 
+class UNiagaraSystem;
+
 /**
  * 
  */
@@ -18,5 +20,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PhysicalMaterial")
 		class  USoundBase* FootstepSound = nullptr;
-	
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PhysicalMaterial")
+		class  USoundBase* PointImpactSound = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PhysicalMaterial")
+		UNiagaraSystem* PointImpactParticleFX = nullptr;
 };

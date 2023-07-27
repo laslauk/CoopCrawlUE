@@ -9,6 +9,10 @@
 /**
  * 
  */
+
+class UItemStaticData;
+
+
 UCLASS()
 class LASDC_API UAnimInstanceBase : public UAnimInstance
 {
@@ -16,11 +20,21 @@ class LASDC_API UAnimInstanceBase : public UAnimInstance
 
 protected:
 
+	const UItemStaticData* GetEquippedItemStaticData() const;
+
 	UFUNCTION(BlueprintCallable, meta = (BlueprintThreadSafe))
 		class UBlendSpace* GetLocomotionBlendspace() const;
 
 	UFUNCTION(BlueprintCallable, meta = (BlueprintThreadSafe))
 		class UAnimSequenceBase* GetIdleAnimation() const;
+
+
+	UFUNCTION(BlueprintCallable, meta = (BlueprintThreadSafe))
+		class UBlendSpace* GetCrouchLocomotionBlendspace() const;
+
+	UFUNCTION(BlueprintCallable, meta = (BlueprintThreadSafe))
+		class UAnimSequenceBase* GetCrouchIdleAnimation() const;
+
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Animation")
 		class UCharacterAnimDataAsset* DefaultCharacterAnimDataAasset;

@@ -3,10 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "InventoryList.generated.h"
 //fast array initialized
 class UInventoryIteminstance;
 class UItemStaticData;
+
 
 USTRUCT(BlueprintType)
 struct FInventoryListItem : public FFastArraySerializerItem {
@@ -37,9 +39,11 @@ struct FInventoryList : public FFastArraySerializer {
 	void AddItem(TSubclassOf<UItemStaticData> InItemStaticDataClass, AActor* owner);
 	void AddItem(UInventoryItemInstance* InItemInstance);
 	void RemoveItem(TSubclassOf<UItemStaticData> InItemStaticDataClass);
-
+	void RemoveItem(UInventoryItemInstance* InItemInstance);
 
 	TArray<FInventoryListItem>& GetItemsRef() { return Items; }
+	TArray<UInventoryItemInstance*> GetAllInstancesWithTag(FGameplayTag InTag);
+	TArray< UInventoryItemInstance*> GetAllAvailableInstancesOfType(TSubclassOf<UItemStaticData> InItemStaticData); //return all available instances, 
 
 protected:
 
@@ -55,11 +59,3 @@ struct TStructOpsTypeTraits<FInventoryList> : public TStructOpsTypeTraitsBase2<F
 	enum {WithNetDeltaSerializer = true};
 };
 
-UENUM(BlueprintType)
-enum class EItemState : uint8
-
-{
-	None UMETA(DIsplayName ="None"),
-	Equipped UMETA(DisplayName = "Equipped"),
-	Dropped UMETA(DisplayName = "Dropped"),
-};

@@ -76,7 +76,20 @@ public:
 		virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty> & OutLifetimeProps) const override;
 
 		UPROPERTY(EditAnywhere, Replicated)
-		 UInventoryComp* InventoryComp = nullptr;
+		UInventoryComp* InventoryComp = nullptr;
+
+		UFUNCTION(BlueprintCallable, Category = "Inventory")
+		void SetOpenedInventoryContainerActor(AActor* Other) { OpenedInventoryContainerActor = Other; }
+
+		UFUNCTION(BlueprintCallable, Category = "Inventory")
+		AActor* GetOpenedInventoryContainerActor() { return OpenedInventoryContainerActor;  }
+
+
+private:
+
+		//TODO Maybe replicate?
+		UPROPERTY(EditAnywhere)
+		AActor* OpenedInventoryContainerActor = nullptr;
 
 
 	//	UFUNCTION(BlueprintCallable, Category = "PlayerStateBase")

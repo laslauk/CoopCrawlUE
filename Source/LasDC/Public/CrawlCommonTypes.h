@@ -3,10 +3,24 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "CrawlCommonTypes.generated.h"
+
+
+class UGameplayAbility;
+class UGameplayEffect;
+class UAnimMontage;
+class AItemActorBase;
+class UNiagaraSystem;
+
+
+
+
+/* CHARACTER DATA*/
 
 USTRUCT(BlueprintType)
 struct FCharacterData {
+
 	GENERATED_USTRUCT_BODY();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GAS")
@@ -19,8 +33,14 @@ struct FCharacterData {
 	class UCharacterAnimDataAsset* CharacterAnimDataAsset;
 };
 
+
+
+
+/* CHARACTER ANIMATION DATA*/
+
 USTRUCT(BlueprintType)
 struct FCharacterAnimationData {
+
 	GENERATED_USTRUCT_BODY();
 
 	UPROPERTY(EditDefaultsOnly)
@@ -29,17 +49,67 @@ struct FCharacterAnimationData {
 	UPROPERTY(EditDefaultsOnly)
 		class UAnimSequenceBase* IdleAnimationAsset = nullptr;
 
+	UPROPERTY(EditDefaultsOnly)
+		class UBlendSpace* CrouchMovementBlendSpace = nullptr;
+
+	UPROPERTY(EditDefaultsOnly)
+		class UAnimSequenceBase* CrouchIdleAnimationAsset = nullptr;
+
 
 };
 
-UENUM(BlueprintType)
-enum class EFoot : uint8 {
-	Left UMETA(DisplayName = "Left"),
-	Right UMETA(DisplayName = "Right")
+/* PROJECTILE STATIC DATA*/
+UCLASS(BlueprintType, Blueprintable)
+class UProjectileStaticData : public UObject {
+	GENERATED_BODY()
+
+public:
+
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	float BaseDamage;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		float DamageRadius;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		float GravityMultiplier = 1.0f;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		float InitialSpeed = 3000.0f;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		float MaxSpeed = 3000.0f;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		UStaticMesh* StaticMesh;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		TArray<TSubclassOf<UGameplayEffect>> EffectsToApplyOnHit;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		TArray<TEnumAsByte<EObjectTypeQuery>> RadialDamageQueryTypes;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		TEnumAsByte<ETraceTypeQuery> RadialDamageTraceType;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	UNiagaraSystem* OnStopVFX = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		USoundBase* OnStopSFX = nullptr;
+
 };
 
-
-
+/* ITEM BASE STATIC DATA*/
 
 UCLASS(BlueprintType, Blueprintable)
 class UItemStaticData : public UObject {
@@ -47,6 +117,7 @@ class UItemStaticData : public UObject {
 	GENERATED_BODY()
 
 public:
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	FName Name;
 
@@ -58,8 +129,114 @@ public:
 	FName WeaponAttachmentSocketName = NAME_None;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-		bool bCanBeEquipped = true;
+	bool bCanBeEquipped = true;
 
+	UPROPERTY(EditDefaultsOnly)
+	FCharacterAnimationData CharacterAnimationData;
+
+	//how to use weapons == weapons grant an USE (such as melee, shoot) ability to use the weapon
+	UPROPERTY(EditDefaultsOnly, BLueprintReadOnly)
+	TArray<TSubclassOf<UGameplayAbility>> GrantedAbilities; //item grants abilities
+
+	//effects we apply to character when we equip it
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	TArray<TSubclassOf<UGameplayEffect>> OngoingEffects;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	TArray<FGameplayTag> InventoryTags;
+
+	//1 item instance can have multiple items
+	UPROPERTY(EditDefaultsOnly, Blueprintable)
+		int32 MaxStackCount = 1;
+
+};
+
+
+
+
+/* WEAPON ITEM STATIC DATA*/
+
+UCLASS(BlueprintType, Blueprintable)
+class UWeaponStaticData : public UItemStaticData {
+
+	GENERATED_BODY()
+
+public:
+
+	//effect to apply damage
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		TSubclassOf<UGameplayEffect> DamageEffect;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		USkeletalMesh* SkeletalMesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		UStaticMesh* StaticMesh;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		UAnimMontage* PrimaryActionMontage;
+
+
+	UPROPERTY(EditDefaultsOnly, BLueprintReadOnly)
+		float FireRate;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		float BaseDamage;
+
+	//Attack soundit on played by itemActor
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		USoundBase* AttackSound;
+
+
+	/* NOTE, even it is named AMmoTag, it is COUNT tag, TODO fix names, can be used for other stacking items such as potion etc.*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		 FGameplayTag AmmoTag;
+
+};
+
+
+
+/* Ammunition item */
+
+UCLASS(BlueprintType, Blueprintable)
+class UAmmoItemStaticData : public UItemStaticData {
+
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		UStaticMesh* StaticMesh = nullptr;
+
+};
+
+
+/********* GENERAL ENUMS ***********/
+
+UENUM(BlueprintType)
+enum class EItemState : uint8
+{
+	None UMETA(DIsplayName = "None"),
+	Equipped UMETA(DisplayName = "Equipped"),
+	Dropped UMETA(DisplayName = "Dropped"),
+};
+
+
+UENUM(BlueprintType)
+enum class EFoot : uint8 {
+	Left UMETA(DisplayName = "Left"),
+	Right UMETA(DisplayName = "Right")
+};
+
+
+UENUM(BlueprintType)
+enum class EMovementDirectionType : uint8 {
+
+	None UMETA(DisplayName = "None"),
+	OrientRotationToMovement UMETA(DisplayName = "OrientRotationToMovement"),
+	Strafe UMETA(DisplayName = "Strafe")
 
 
 };
+

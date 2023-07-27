@@ -54,17 +54,20 @@ void APlayerStateBase::BeginPlay()  {
 	Super::BeginPlay();
 
 
-
 	if (ASC) {
 		UE_LOG(LogTemp, Warning, TEXT("Begin playssä ainakin abi system comp"));
 		//getgameplaatytirbute palauttaa delegaten johon voi bindata, kutsutaan automatic kun attribute changes.
 
 		//antaa  FOnAttributeChangeData parametrin missä on ,new, old vale ja gameplay effect mod callback data.
+
+		/*
 		HealthChangedDelegateHandle = ASC->
 			GetGameplayAttributeValueChangeDelegate(
 				AttributeSetBaseComp->GetHealthAttribute()
 			).AddUObject(
 				this, &APlayerStateBase::HealthChanged);
+			*/
+
 
 
 		// Attribute change callbacks

@@ -99,13 +99,43 @@ void UAttributeSetBase::OnRep_MaxStamina(const FGameplayAttributeData& OldMaxSta
 void UAttributeSetBase::OnRep_MaxMovementSpeed(const FGameplayAttributeData& OldMaxMovementSpeed)
 {
 	UE_LOG(LogTemp, Warning, TEXT("CLIENT ON REP MAX MOVEMENT SPED: %f, %f"), MaxMovementSpeed.GetCurrentValue(), OldMaxMovementSpeed.GetCurrentValue());
+
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UAttributeSetBase, MaxMovementSpeed, OldMaxMovementSpeed);
 	ACharacter* chararcter = Cast<ACharacter>(GetOwningAbilitySystemComponent()->GetAvatarActor());
-	if (chararcter) {
 
-		chararcter->GetCharacterMovement()->MaxWalkSpeed = MaxMovementSpeed.GetCurrentValue();
+
+	AActor* owner = (GetOwningAbilitySystemComponent()->GetOwner());
+	if (owner) {
+
+		UE_LOG(LogTemp, Warning, TEXT("ON SENTÄÄ OWNER %s"), *owner->GetName());
+		if (ACharacter* playerCharref = Cast<APlayerStateBase>(owner)->playerCharacterRef) {
+			UE_LOG(LogTemp, Warning, TEXT("ON SENTÄÄ OWNER CHARACTER %s"), *playerCharref->GetName());
+
+		}
 
 	}
+	else {
+
+	}
+	if (chararcter) {
+		chararcter->GetCharacterMovement()->MaxWalkSpeed =  MaxMovementSpeed.GetCurrentValue();
+		UE_LOG(LogTemp, Warning, TEXT("Max moveent speed set for: %s, AS:  %f"), *chararcter->GetName(), chararcter->GetCharacterMovement()->MaxWalkSpeed);
+	}
+	else {
+
+
+		if (ACharacter* playerCharref = Cast<APlayerStateBase>(owner)->playerCharacterRef) {
+
+			UE_LOG(LogTemp, Warning, TEXT("------- On sentään PlayerCharacter Ref olemassa"));
+			playerCharref->GetCharacterMovement()->MaxWalkSpeed = MaxMovementSpeed.GetCurrentValue();
+		}
+		else {
+			UE_LOG(LogTemp, Warning, TEXT("CHARACTERON VITTU NULL SAATANA"));
+		}
+	
+	}
+
+
 
 	
 }

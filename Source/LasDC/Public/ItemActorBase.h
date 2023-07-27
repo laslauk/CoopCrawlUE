@@ -27,7 +27,7 @@ public:
 
 
 
-	void Init(class UInventoryItemInstance* InInstance);
+	void Init(class UInventoryItemInstance* InInstance, int32 Quantity = 1);
 
 protected:
 	// Called when the game starts or when spawned
@@ -37,25 +37,34 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing = OnRep_ItemInstance)
 	class UInventoryItemInstance* ItemInstance = nullptr;
 
-	UPROPERTY()
-	class APlayerStateBase* OwningPlayerState;
+	UFUNCTION()
+	void OnRep_ItemInstance(UInventoryItemInstance* OldItemInstanceValue); //track when required to init on client
 
 	virtual void OnEquipped();
 	virtual void OnUnequipped();
 	virtual void OnDropped();
 
+	UFUNCTION()
+	void OnRep_ItemState();
 
-	UPROPERTY(Replicated)
-	TEnumAsByte<EItemState> ItemState = EItemState::None;
+	UFUNCTION()
+	class AActor* GetOwningPlayerState();
 
-	UPROPERTY()
+
+	UPROPERTY(ReplicatedUsing = OnRep_ItemState)
+	EItemState ItemState = EItemState::None;
+
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly)
 	class USphereComponent* SphereComponent = nullptr;
 
-	UPROPERTY(EditDefaultsOnly)
-		TSubclassOf<UItemStaticData> ItemStaticDataClass;
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<UItemStaticData> ItemStaticDataClass;
+
+	UPROPERTY(EditAnywhere, Replicated)
+	int32 Quantity = 1;
 
 	UFUNCTION()
 		void OnPickupCollisionOverlap(UPrimitiveComponent* OverlappedComponent, AActor* otherActor, UPrimitiveComponent* otherComp,
@@ -63,5 +72,8 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	FGameplayTag OverlapEventTag;
+public:
+
+	virtual void InitInternal();
+
 };
