@@ -27,9 +27,6 @@ enum class ECrawlAbilityTargetingSource : uint8
 };
 
 
-/**
- * 
- */
 UCLASS()
 class LASDC_API UGA_GameplayAbility_RangedWeapon : public UGA_InventoryCombatAbility
 {
@@ -108,7 +105,7 @@ public:
 
 
 	UFUNCTION(BlueprintCallable)
-		void FireProjectileFromMuzzleToHitDirection(const FHitResult& HitResult);
+	void FireProjectileFromMuzzleToHitDirection(const FHitResult& HitResult);
 		
 
 

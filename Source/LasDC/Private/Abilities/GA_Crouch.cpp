@@ -11,21 +11,21 @@ UGA_Crouch::UGA_Crouch() {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor; //ability only with c++, blueprint require object instance
 }
 
-	/** Actually activate ability, do not call this directly */
+
 void UGA_Crouch::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) {
 
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-	//here we actually call crouch, unreals implementation ready character whatever
+	//Call Unreal's implementation of Crouch and actually Crouch.
 	ACharacter* Character = CastChecked<ACharacter>(ActorInfo->AvatarActor.Get());
-	Character->Crouch(); //NOT Direclty set the state, put the INTENTION to crouch
 
-	UE_LOG(LogTemp, Warning, TEXT("CROUCH ACTIVATE ABILITY"));
+	//Crouch does NOT Direclty set the state, put the INTENTION to crouch
+	Character->Crouch(); 
 
  }
 
-/** Native function, called if an ability ends normally or abnormally. If bReplicate is set to true, try to replicate the ending to the client/server */
+
 void UGA_Crouch::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) {
 
@@ -40,8 +40,6 @@ void UGA_Crouch::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGame
  }
 
 
-
-//check if can activate ability
 bool UGA_Crouch::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayTagContainer* SourceTags, const FGameplayTagContainer* TargetTags, OUT FGameplayTagContainer* OptionalRelevantTags) const {
 
@@ -51,8 +49,9 @@ bool UGA_Crouch::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, con
 
 	const ACharacter* Character = CastChecked<ACharacter>(ActorInfo->AvatarActor.Get(), ECastCheckedType::NullAllowed);
 
-	//use unreal character's existing canCrouch function
-	if (Character->CanCrouch()) {
+	// UE's Character's existing canCrouch function
+	if (Character->CanCrouch())
+	{
 
 	}
 	return Character->CanCrouch();

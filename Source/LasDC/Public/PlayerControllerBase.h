@@ -221,8 +221,6 @@ public:
 	void BP_OnDeath();
 
 
-
-
 	/* UI Widgets */
 
 	UPROPERTY()
@@ -272,7 +270,7 @@ public:
 	float CrosshairInAirFactor;
 
 	UPROPERTY()
-		float CrosshairAimFactor;
+	float CrosshairAimFactor;
 
 	UPROPERTY()
 	 FCrossHairData CrosshairData;
