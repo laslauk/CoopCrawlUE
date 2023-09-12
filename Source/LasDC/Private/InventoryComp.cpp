@@ -13,7 +13,8 @@
 #include "GameplayTagsManager.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "InventoryItemInstance.h"
-
+#include "Character/CharacterBaseGAS.h"
+#include "CharacterMovementComponentBase.h"
 #include "PlayerStateBase.h"
 #include "Components/ActorComponent.h"
 #include "ItemActorBase.h"
@@ -93,6 +94,12 @@ bool UInventoryComp::ReplicateSubobjects( UActorChannel* channel,  FOutBunch* Bu
 UInventoryItemInstance*  UInventoryComp::GetEquippedItem() const {
 
 	return CurrentEquippedItem;
+}
+
+bool UInventoryComp::IsOwnerEquippingItem() const {
+
+	return CurrentEquippedItem != nullptr ? true : false;
+
 }
 
 void UInventoryComp::GetLifetimeReplicatedProps(TArray<FLifetimeProperty> &OutLifetimeProps) const {
@@ -220,10 +227,13 @@ void UInventoryComp::DropItem() {
 				UE_LOG(LogTemp, Warning, TEXT("DROPITEM----------NO ITEM STATIC DATA CLASS"));
 				return;
 			}
-	
 				RemoveItem(CurrentEquippedItem->ItemStaticDataClass);
 				CurrentEquippedItem->OnDropped(GetControlledAvatar());
 				CurrentEquippedItem = nullptr;
+
+				ACharacterBaseGAS* C = Cast<ACharacterBaseGAS>(Cast<APlayerStateBase>(GetOwner())->GetPawn());
+				C->bUseControllerRotationYaw = false;
+				C->GetCharacterMovement()->bOrientRotationToMovement = true;
 		}
 	}
 
@@ -232,8 +242,10 @@ void UInventoryComp::DropItem() {
 
 void UInventoryComp::EquipItem(TSubclassOf<UItemStaticData> InItemStaticDataClass) {
 
-
+	
 	if (GetOwner()->HasAuthority()) {
+
+	
 		for (auto Item : InventoryList.GetItemsRef()) {
 
 			if (Item.ItemInstance->ItemStaticDataClass == InItemStaticDataClass) {
@@ -245,11 +257,15 @@ void UInventoryComp::EquipItem(TSubclassOf<UItemStaticData> InItemStaticDataClas
 			
 				Item.ItemInstance->OnEquipped(actor);
 				CurrentEquippedItem = Item.ItemInstance;
+
+
+
 				break;
 			}
 		
 		}
 	}
+	
 
 
 
@@ -264,6 +280,8 @@ void UInventoryComp::UnEquipItem() {
 
 			CurrentEquippedItem->OnUnequipped(GetControlledAvatar());
 			CurrentEquippedItem = nullptr;
+			
+		
 		}
 	}
 
@@ -339,6 +357,8 @@ void UInventoryComp::AddItemInstance(UInventoryItemInstance* InItemInstance) {
 }
 
 void UInventoryComp::EquipItemInstance(UInventoryItemInstance* InItemInstance) {
+
+
 	if (GetOwner()->HasAuthority()) {
 		for (auto item : InventoryList.GetItemsRef()) {
 
@@ -350,6 +370,17 @@ void UInventoryComp::EquipItemInstance(UInventoryItemInstance* InItemInstance) {
 
 			
 
+				ACharacterBaseGAS* C = Cast<ACharacterBaseGAS>(Cast<APlayerStateBase>(GetOwner())->GetPawn());
+
+				if (C) {
+					UE_LOG(LogTemp, Warning, TEXT("HGOMO!!!0"));
+				}
+				else {
+					UE_LOG(LogTemp, Warning, TEXT("ei jhomoa0"));
+				}
+
+				C->bUseControllerRotationYaw = true;
+				C->GetCharacterMovement()->bOrientRotationToMovement = false;
 				
 			}
 
@@ -405,6 +436,7 @@ void UInventoryComp::GameplayEventCallback(const FGameplayEventData* payload) {
 
 
 	
+
 	ENetRole NetRole = GetOwnerRole();
 
 	if (NetRole == ROLE_Authority) {
@@ -449,22 +481,27 @@ void UInventoryComp::AddInventoryTags() {
 void UInventoryComp::HandleGameplayEventInternal(FGameplayEventData payload) {
 
 
-
 	if (!GetOwner()->HasAuthority())
 	{
 		return;
 	}
 
-
+	/* Get what tag is and do stuff based on that */
 	FGameplayTag eventTag = payload.EventTag;
 
+
+
+		/* EQUIP ITEM ACTOR */
 		if (eventTag == EquipItemActorTag) {
 
 			if ( UInventoryItemInstance* iteminstance = Cast<UInventoryItemInstance>(payload.OptionalObject)) {
 
 				AddItemInstance(const_cast<UInventoryItemInstance*>(iteminstance));
 				iteminstance->OwningPlayerState = GetOwner();
+				
+				UE_LOG(LogTemp, Warning, TEXT("SETTING OWNER of itemInstance %s to %s"), *iteminstance->GetName(), *GetOwner()->GetName());
 
+				/* Destroy the original actor in the world*/
 				if (payload.Instigator) {
 					const_cast<AActor*>(payload.Instigator.Get())->Destroy();
 
@@ -494,6 +531,42 @@ void UInventoryComp::HandleGameplayEventInternal(FGameplayEventData payload) {
 
 void UInventoryComp::OnRep_CurrentEquippedItem()
 {
+	if (Cast<APlayerStateBase>(GetOwner())->GetPawn()) {
+
+		ACharacterBaseGAS* C = Cast<ACharacterBaseGAS>(Cast<APlayerStateBase>(GetOwner())->GetPawn());
+		if (C) 
+		
+		{
+			if(CurrentEquippedItem){
+				if (C->CharacterMovementComponent) 
+				{
+					C->bUseControllerRotationYaw = true;
+					C->GetCharacterMovement()->bOrientRotationToMovement = false;
+				//	C->CharacterMovementComponent->SetMovementDirectionType(EMovementDirectionType::Strafe);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("EI OLE CHAR MOVEMENT COMPONENT"))
+				
+				}
+			}
+			else {
+
+				C->bUseControllerRotationYaw = false;
+				C->GetCharacterMovement()->bOrientRotationToMovement = true;
+			}
+		
+		}
+		else 
+		{
+			UE_LOG(LogTemp, Warning, TEXT("EI OLE C"))
+		}
+	}
+	else {
+
+		UE_LOG(LogTemp, Warning, TEXT("EI OLE GETOWNER"))
+	}
+
 	InventoryUpdateDelegate.Broadcast(true);
 }
 
@@ -567,6 +640,7 @@ void UInventoryComp::OnRep_InventoryList()
 {
 	InventoryUpdateDelegate.Broadcast(true);
 }
+
 
 TArray<UInventoryItemInstance*>  UInventoryComp::GetAllInstancesWIthTag(FGameplayTag InTag) {
 

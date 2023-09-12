@@ -86,6 +86,7 @@ public:
 	void OnRep_InventoryList();
 
 
+
 	//TODO, parempi select system ei Class
 	UFUNCTION(BlueprintCallable)
 	void EquipItem(TSubclassOf<class UItemStaticData> InItemStaticDataClass);
@@ -129,6 +130,8 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	class UInventoryItemInstance* GetEquippedItem() const;
+
+	bool IsOwnerEquippingItem() const;
 
 	UPROPERTY(VisibleAnywhere, ReplicatedUsing = OnRep_CurrentEquippedItem)
 	class UInventoryItemInstance* CurrentEquippedItem = nullptr;

@@ -14,6 +14,7 @@ void FInventoryList::AddItem(TSubclassOf<UItemStaticData> InItemStaticDataClass,
 	Item.ItemInstance->Init(InItemStaticDataClass, owner, UCrawlGameStatics::GetItemStaticData(InItemStaticDataClass)->MaxStackCount);
 
 
+
 	//IMPORTANT, ARRAYS WORKING, MARK DIRTY
 	MarkItemDirty(Item);
 

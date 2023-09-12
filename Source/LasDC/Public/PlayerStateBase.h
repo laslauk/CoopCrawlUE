@@ -31,7 +31,17 @@ class LASDC_API APlayerStateBase : public APlayerState, public IAbilitySystemInt
 public:
 	APlayerStateBase();
 
+	class ACrawlHUD* CrawlHUD;
+
+	UFUNCTION()
+	void SetHUDHealth(float health, float MaxHealth);
+
+	UFUNCTION()
+		void OnEnforcedStrafeTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
+
 	virtual void BeginPlay() override;
+
+	void UpdateHUD();
 	
 	//	UFUNCTION(BlueprintCallable, Category = "CharacterBase")
 	//	void AcquireAbility(TSubclassOf<UGameplayAbility> AbilityToAcquire);
@@ -41,8 +51,19 @@ public:
 		UPROPERTY()
 		class UAttributeSetBase* AttributeSetBaseComp;
 
+		UPROPERTY()
+			class UAttributeSetAiming* AttributeSetAiming;
+
 		UPROPERTY(EditAnywhere, Replicated)
 		ACharacter* playerCharacterRef;
+
+
+		UPROPERTY(Replicated)
+		class APlayerControllerBase* PlayerController;
+
+		
+		UFUNCTION()
+		APawn* GetControlledPawn();
 
 
 		UAbilitySystemComponent* GetAbilitySystemComponent() const override;
@@ -66,7 +87,7 @@ public:
 		FDelegateHandle HealthChangedDelegateHandle;
 		FDelegateHandle MaxHealthChangedDelegateHandle;
 
-		//atribute change callbacks
+		//atribute change callbacks ----- teh‰‰n n‰‰ CharacterBase:ssa
 		virtual void HealthChanged(const FOnAttributeChangeData& Data);
 		virtual void MaxHealthChanged(const FOnAttributeChangeData& Data);
 
@@ -90,6 +111,8 @@ private:
 		//TODO Maybe replicate?
 		UPROPERTY(EditAnywhere)
 		AActor* OpenedInventoryContainerActor = nullptr;
+
+
 
 
 	//	UFUNCTION(BlueprintCallable, Category = "PlayerStateBase")

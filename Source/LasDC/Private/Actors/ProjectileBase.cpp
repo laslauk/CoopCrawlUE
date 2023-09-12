@@ -3,9 +3,17 @@
 
 #include "Actors/ProjectileBase.h"
 #include "GameFramework/ProjectileMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
+
+#include "Kismet/GameplayStatics.h" //spawnEMitterATtached()
+
 #include "Components/StaticMeshComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Components/BoxComponent.h"
+
+/* Particles for tracer */
+#include "Particles/ParticleSystemComponent.h"
+#include "Particles/ParticleSystem.h"
+
 #include "CrawlGameStatics.h"
 #include "NiagaraFunctionLibrary.h"
 
@@ -27,18 +35,35 @@ AProjectileBase::AProjectileBase()
 	SetReplicateMovement(true);
 	bReplicates = true;
 
+	CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxCollision"));
+
+
+	CollisionBox->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
+	CollisionBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	CollisionBox->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+	CollisionBox->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldStatic, ECollisionResponse::ECR_Block);
+
+
+
 	ProjectileMovementComponent = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComponent"));
 
 	ProjectileMovementComponent->ProjectileGravityScale = 0.f;
 	ProjectileMovementComponent->Velocity = FVector::ZeroVector;
-	ProjectileMovementComponent->OnProjectileStop.AddDynamic(this, &AProjectileBase::OnProjectileStop);
+
+	ProjectileMovementComponent->bRotationFollowsVelocity = true;
 
 	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
-	SetRootComponent(StaticMeshComponent);
+	SetRootComponent(CollisionBox);
 	StaticMeshComponent->SetupAttachment(GetRootComponent());
-	StaticMeshComponent->SetIsReplicated(true);
+	//StaticMeshComponent->SetIsReplicated(true);
 	StaticMeshComponent->SetCollisionProfileName("Projectile");
 	StaticMeshComponent->bReceivesDecals = false;
+
+
+	/* TODO, check onko tää performance hit olla myös */
+//	ProjectileMovementComponent->OnProjectileStop.AddDynamic(this, &AProjectileBase::OnProjectileStop);
+
+	
 
 }
 
@@ -49,7 +74,8 @@ void AProjectileBase::BeginPlay()
 
 	const UProjectileStaticData* ProjectileData = GetProjectileStaticData();
 	if (ProjectileData && ProjectileMovementComponent) {
-		if (ProjectileData->StaticMesh) {
+		if (ProjectileData->StaticMesh)
+		{
 			StaticMeshComponent->SetStaticMesh(ProjectileData->StaticMesh);
 		}
 		
@@ -62,12 +88,34 @@ void AProjectileBase::BeginPlay()
 
 
 		ProjectileMovementComponent->Velocity = ProjectileData->InitialSpeed * GetActorForwardVector(); //assume proper transofrmation appleid before BeginPlay()
+
+		if (ProjectileData->TracerParticleSystem) 
+		{
+			TracerParticleSystemComponent  = UGameplayStatics::SpawnEmitterAttached(
+				ProjectileData->TracerParticleSystem,
+				StaticMeshComponent,
+				FName(), //For attaching to bones
+				GetActorLocation(),
+				GetActorRotation(),
+				EAttachLocation::KeepWorldPosition
+				
+			);
+
+		}
 	}
 
 	//Debug
 	const int32 DebugShowProjectile = CVarShowProjectiles.GetValueOnAnyThread();
 	if (DebugShowProjectile) DebugDrawPath();
-	
+
+	/* server handles Onhit stuff like dm,g */
+	if (HasAuthority()) 
+	{
+	//	CollisionBox->OnComponentHit.AddDynamic(this, &AProjectileBase::OnHit);
+		CollisionBox->OnComponentBeginOverlap.AddDynamic(this, &AProjectileBase::OnBoxCollisionBeginOverlap);
+
+	}
+
 }
 
 const UProjectileStaticData* AProjectileBase::GetProjectileStaticData() const {
@@ -80,7 +128,7 @@ const UProjectileStaticData* AProjectileBase::GetProjectileStaticData() const {
 
 
 
-
+/* CALLED WHEN DESTROYED, SPAWN SHIT AT LOCATION */
 void AProjectileBase::EndPlay(const EEndPlayReason::Type EndPLayReason) {
 
 	const UProjectileStaticData* ProjectileData = GetProjectileStaticData();
@@ -95,22 +143,67 @@ void AProjectileBase::EndPlay(const EEndPlayReason::Type EndPLayReason) {
 
 }
 
+void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+	UE_LOG(LogTemp, Warning, TEXT("On HIT! projectile"));
+	
+	/* Play sound, add particle fx*/
+	const UProjectileStaticData* ProjectileData = GetProjectileStaticData();
+	if (ProjectileData)
+	{
+		if (ProjectileData->bHasSplash) {
+			UCrawlGameStatics::ApplyRadialDamage(this, GetOwner(), GetActorLocation(),
+				ProjectileData->DamageRadius,
+				ProjectileData->BaseDamage,
+				ProjectileData->EffectsToApplyOnHit,
+				ProjectileData->RadialDamageQueryTypes,
+				ProjectileData->RadialDamageTraceType,
+				{} //< Actors To Ignore
+			);
+
+		}
+		else {
+
+			//ENDISSÄ PLAYTAAN SOUNDFX JA FX
+			UCrawlGameStatics::ApplyDirectDamage(
+				this,
+				GetOwner(),
+				OtherActor,
+				ProjectileData->BaseDamage,
+				ProjectileData->EffectsToApplyOnHit
+			);
+
+		}
+	}
+	Destroy();
+	UE_LOG(LogTemp, Warning, TEXT("HIT TARGET: !!!!!!! %s"), *OtherActor->GetName());
+}
+
 
 
 void AProjectileBase::OnProjectileStop(const FHitResult& ImpactResult) {
 
 	const UProjectileStaticData* ProjectileData = GetProjectileStaticData();
-
+	UE_LOG(LogTemp, Warning, TEXT("On Projectile Stop! projectile"));
 	if(ProjectileData) {
 
-		UCrawlGameStatics::ApplyRadialDamage(this, GetOwner(), GetActorLocation(),
-			ProjectileData->DamageRadius,
-			ProjectileData->BaseDamage,
-			ProjectileData->EffectsToApplyOnHit,
-			ProjectileData->RadialDamageQueryTypes,
-			ProjectileData->RadialDamageTraceType,
-			{} //< Actors To Ignore
+		if (ProjectileData->bHasSplash) {
+			UE_LOG(LogTemp, Warning, TEXT("On Projectile Stop! has splasH+"));
+			UCrawlGameStatics::ApplyRadialDamage(this, GetOwner(), GetActorLocation(),
+				ProjectileData->DamageRadius,
+				ProjectileData->BaseDamage,
+				ProjectileData->EffectsToApplyOnHit,
+				ProjectileData->RadialDamageQueryTypes,
+				ProjectileData->RadialDamageTraceType,
+				{} //< Actors To Ignore
 			);
+		}
+		else
+		{
+
+
+		}
+
 
 	}
 
@@ -132,7 +225,7 @@ void AProjectileBase::DebugDrawPath() const {
 		PredictProjectilePathParams.DrawDebugType = EDrawDebugTrace::ForDuration;
 		PredictProjectilePathParams.DrawDebugTime = 3.0f;
 		PredictProjectilePathParams.OverrideGravityZ = ProjectileData->GravityMultiplier == 0.f ? 0.0001 : ProjectileData->GravityMultiplier;
-
+		
 		FPredictProjectilePathResult PredictProjectilePathResult;
 
 		//Do a prediction
@@ -156,5 +249,16 @@ void AProjectileBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 
 
 	DOREPLIFETIME(AProjectileBase, ProjectileDataClass);
+
+}
+
+void AProjectileBase::OnBoxCollisionBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, 
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (GetInstigator() != OtherActor)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BeginOverlap Instigator: %s ---> Other actor: %s"), *GetInstigator()->GetName(), *OtherActor->GetName());
+		OnHit(OverlappedComp, OtherActor, OtherComp, FVector::ZeroVector, SweepResult);
+	}
 
 }

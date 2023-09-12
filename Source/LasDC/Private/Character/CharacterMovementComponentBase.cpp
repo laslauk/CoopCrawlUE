@@ -5,6 +5,7 @@
 
 #include "GameFramework/Character.h"
 #include "AbilitySystemBlueprintLibrary.h"
+#include "Net/UnrealNetwork.h"
 #include "AbilitySystemComponent.h"
 
 
@@ -19,15 +20,16 @@ bool UCharacterMovementComponentBase::TryTraversal(UAbilitySystemComponent* ASC)
 
 
 
-	
+	UE_LOG(LogTemp, Warning, TEXT("1/3 TryTraversal..."));
 	for (TSubclassOf<UGameplayAbility> AbilityClass : TraversalAbilitiesOrdered)
 	{
 		if (ASC->TryActivateAbilityByClass(AbilityClass, true)) {
 			FGameplayAbilitySpec* Spec;
-
+			UE_LOG(LogTemp, Warning, TEXT("2/3 TryACtivate ability..."));
 			Spec = ASC->FindAbilitySpecFromClass(AbilityClass); //nyt käytetään ability classeja checkaa mitä käytetää
 
 			if (Spec && Spec->IsActive()) {
+				UE_LOG(LogTemp, Warning, TEXT("3/3 True activate ..."));
 				return true;
 			}
 		}
@@ -54,14 +56,46 @@ void UCharacterMovementComponentBase::BeginPlay() {
 	*/
 	//item instance handlaa kun equippaa niin lisää sen efektin
 
-	if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner())) {
-		ASC->RegisterGameplayTagEvent(FGameplayTag::RequestGameplayTag(TEXT("Movement.EnforcedStrafe"), EGameplayTagEventType::NewOrRemoved))
-			.AddUObject(this, &UCharacterMovementComponentBase::OnEnforcedStrafeTagChanged);
-
-	}
 
 
  }
+
+
+void UCharacterMovementComponentBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const {
+
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UCharacterMovementComponentBase, MovementDirectionType);
+
+
+}
+
+
+void UCharacterMovementComponentBase::SetupAbilitySystem(UAbilitySystemComponent* ASC)
+
+{
+	/*
+	if (ASC)
+	{
+
+		UE_LOG(LogTemp, Warning, TEXT("---------------- HANDLE MOVEMENT: "), *ASC->GetOwner()->GetName());
+
+		ASC->RegisterGameplayTagEvent(
+			FGameplayTag::RequestGameplayTag(TEXT("Movement.EnforcedStrafe"),
+				EGameplayTagEventType::NewOrRemoved))
+			.AddUObject(this, &UCharacterMovementComponentBase::OnEnforcedStrafeTagChanged);
+
+	}
+	else 
+	{
+		UE_LOG(LogTemp, Warning, TEXT("-------XXXXXXXXXX--------- BeginPlay CharacterMoivement ocpmonent FAILED{FAILED}}: "));
+
+
+
+	}
+	*/
+}
+
+
 
 
 EMovementDirectionType UCharacterMovementComponentBase::GetMovementDirectionType() const {
@@ -69,19 +103,31 @@ EMovementDirectionType UCharacterMovementComponentBase::GetMovementDirectionType
 }
 
 void UCharacterMovementComponentBase::SetMovementDirectionType(EMovementDirectionType NewType) {
+	
+	
+	//UE_LOG(LogTemp, Warning, TEXT(">>>>>>>> setting movement type to: %d with role { %d }"), NewType, GetOwner()->GetRemoteRole());
+
 	MovementDirectionType = NewType;
+	//UE_LOG(LogTemp, Warning, TEXT(">>>>>>>> movement type now  %d "), MovementDirectionType);
+
 	HandleMovementDirection();
 }
+
+
 
 
 void UCharacterMovementComponentBase::OnEnforcedStrafeTagChanged(const FGameplayTag CallbackTag, int32 NewCount) {
 
 
-	if (NewCount > 0) {
+	if (NewCount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT(">>>>>>>> OnEnforcedStrafeTagChanged: SETTING TO STRAFE "));
 		SetMovementDirectionType(EMovementDirectionType::Strafe);
 	}
-	else {
-		SetMovementDirectionType(EMovementDirectionType::OrientRotationToMovement);
+	else 
+	
+	{
+		SetMovementDirectionType(EMovementDirectionType::None);
 	}
 
 }
@@ -89,30 +135,72 @@ void UCharacterMovementComponentBase::OnEnforcedStrafeTagChanged(const FGameplay
 
 void UCharacterMovementComponentBase::HandleMovementDirection() {
 
-	switch (MovementDirectionType) {
+
+	if (GetOwner())
+	{
+		
+		if (GetOwner()->GetRemoteRole() == ROLE_Authority)
+		{
+			// This code is running on the server
+			UE_LOG(LogTemp, Warning, TEXT(">>>>>>>> This code is running on the server "));
+		}
+		else if (GetOwner()->GetRemoteRole() == ROLE_AutonomousProxy)
+		{
+			// This code is running on the client that owns the owning actor
+			UE_LOG(LogTemp, Warning, TEXT(">>>>>>>> This code is running on the client that owns the owning actor "));
+		}
+		else if (GetOwner()->GetRemoteRole() == ROLE_SimulatedProxy)
+		{
+			// This code is running on a remote client (not the owner)
+			UE_LOG(LogTemp, Warning, TEXT(">>>>>>>> This code is running on a remote client (not the owner)"));
+		}
+
+	}
+	else {
+
+		UE_LOG(LogTemp, Warning, TEXT(">>>>>>>>  DIDNT GET OWNER <<<<<<<<"));
+	}
+
+
+	UE_LOG(LogTemp, Warning, TEXT(">>>>>>>> SETTING MOVEMENT DIR TYPE FOR SWITCH:  %d and Character %s"), MovementDirectionType, *GetOwner()->GetName());
+	GEngine->AddOnScreenDebugMessage(3, 1, FColor::Orange, FString::Printf(TEXT(">>>>>>>> SETTING MOVEMENT DIR TYPE FOR SWITCH:  %d "), MovementDirectionType));
+
+	switch (MovementDirectionType) 
+	{
 	case EMovementDirectionType::None: 
-		break;
-
-
-	case EMovementDirectionType::OrientRotationToMovement:
-		bUseControllerDesiredRotation = false;
+	//	bUseControllerDesiredRotation = false;
 		bOrientRotationToMovement = true;
 		CharacterOwner->bUseControllerRotationYaw = false;
 		break;
 
+
+	case EMovementDirectionType::OrientRotationToMovement:
+		UE_LOG(LogTemp, Warning, TEXT("Setting  Movement Direction: >OrientRotationToMovement "));
+	//	bUseControllerDesiredRotation = false;
+		bOrientRotationToMovement = true;
+		//bUseControllerRotationYaw = true;
+		CharacterOwner->bUseControllerRotationYaw = true;
+		break;
+
 	case EMovementDirectionType::Strafe: {
-		bUseControllerDesiredRotation = true;
+		UE_LOG(LogTemp, Warning, TEXT("Setting  Movement Direction: >Strafe "));
+	//	bUseControllerDesiredRotation = false;
 		bOrientRotationToMovement = false;
 		CharacterOwner->bUseControllerRotationYaw = true;
 	}
 		break;
 
 	default:
-		bUseControllerDesiredRotation = false;
+	//	bUseControllerDesiredRotation = false;
 		bOrientRotationToMovement = true;
 		CharacterOwner->bUseControllerRotationYaw = false;
 		break;
 
 	}
 
+}
+
+void UCharacterMovementComponentBase::OnRep_MovementDirectionType()
+{
+	HandleMovementDirection();
 }

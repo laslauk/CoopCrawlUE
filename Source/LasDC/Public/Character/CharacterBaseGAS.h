@@ -12,6 +12,7 @@
 #include "GameplayTagContainer.h"
 #include "AbilitySystemComponent.h"
 
+#include "Interfaces/InteractWithCrosshairsInterface.h"
 #include "GameplayEffectExtension.h"
 #include "CharacterBaseGAS.generated.h"
 
@@ -29,21 +30,44 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FLasseDelegate, float, a, float, b)
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCameraLockedDelegate, bool, locked);
 
 UCLASS()
-class LASDC_API ACharacterBaseGAS : public ACharacter, public IAbilitySystemInterface
+class LASDC_API ACharacterBaseGAS : public ACharacter, public IAbilitySystemInterface, public IInteractWithCrosshairsInterface
 {
 	GENERATED_BODY()
 
 public:
 	// Sets default values for this character's properties
-//	ACharacterBaseGAS();
+	ACharacterBaseGAS();
 	ACharacterBaseGAS(const FObjectInitializer& ObjectInitializer);
 
 
+	UFUNCTION()
+	APlayerControllerBase* GetPlayerController();
+
+	void SimProxiesTurn();
+
+	bool bRotateRootBone;
+	
+
+	//UFUNCTION()
+		//FTransform GetAimingDirectionAndMuzzleStart();
+
+	UFUNCTION(NetMulticast, Unreliable)
+		void MulticastDamageReact();
+
+
 	virtual void PostLoad() override;
+	void PlayHitReactMontage();
 
 	UCameraComponent* GetFollowCamera();
 
+	virtual void PostInitializeComponents() override;
+	
 
+	UPROPERTY(EditAnywhere, Category = "Animatin Montages")
+	UAnimMontage* HitReactMontage;
+
+	UPROPERTY(Editanywhere)
+		TSubclassOf<UGameplayEffect> FallingGameplayEffect;
 
 protected:
 	// Called when the game starts or when spawned
@@ -74,7 +98,7 @@ protected:
 	UPROPERTY(Transient)
 	UAttributeSetBase* AttributeSetBaseComp;
 
-
+public:
 	bool ApplyGameplayEffectToSelf(TSubclassOf<UGameplayEffect> gameplayEffect, FGameplayEffectContextHandle IneffectContext);
 
 
@@ -83,6 +107,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	void OnDelegated(float a, float b);
+
+	virtual void Falling() override;
 
 
 	UPROPERTY(BlueprintAssignable, Category = "gaga")
@@ -163,11 +189,16 @@ public:
 
 	 class UFootstepsComponent* GetFootStepsComponent() const;
 
+	 UFUNCTION(BlueprintCallable)
+		 class APlayerControllerBase* GetPlayerControllerBase();
 
 
 protected:
 	UPROPERTY(ReplicatedUsing = OnRep_CharacterData)
 		FCharacterData CharacterData;
+
+	UPROPERTY()
+		 APlayerControllerBase* PlayerControllerBase;
 
 	UFUNCTION()
 		void OnRep_CharacterData();
@@ -233,6 +264,9 @@ public:
 		UPROPERTY(EditDefaultsOnly)
 		TSubclassOf<UGameplayEffect> CrouchStateEffect;
 
+		UPROPERTY(EditDefaultsOnly)
+		TSubclassOf<UGameplayEffect> FallingStateEffect;
+
 		UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MotionWarp")
 		UMotionWarpingComponentBase* MotionWarpingComponent;
 
@@ -251,17 +285,67 @@ public:
 	protected:
 		FDelegateHandle MaxMovementSpeedChangedDelegateHandle;
 
-	
+
+
+		void AimOffset(float DeltaTime);
+
+		/* For calculations, no need for UPROPERTY */
+		float AO_Yaw;
+		float AO_Pitch;
+		float InterpAO_Yaw;
+		FRotator StartingAimRotation;
+
+
+
+		public:
+
+			FORCEINLINE float GetAO_Yaw() { return AO_Yaw; }
+			FORCEINLINE float GetAO_Pitch() { return AO_Pitch; }
+
 		UCharacterMovementComponentBase* CharacterMovementComponent;
 
 	
 
-
-
-
-		/* Survival stuff*/
+protected:
 
 public:
-	
+
+	UPROPERTY(ReplicatedUsing = OnRep_OverlappingItem)
+		class AItemActorBase* OverlappingItem;
+
+	UFUNCTION()
+	void OnRep_OverlappingItem(AItemActorBase* LastValue);
+
+	UPROPERTY(ReplicatedUsing = OnRep_Test)
+	AActor* Test;
+
+	UFUNCTION()
+	void OnRep_Test();
+
+	UFUNCTION()
+	void SetOverlappingItem(AItemActorBase* Item);
+
+
+	bool IsEquippingItem() const;
+	bool IsAiming() const;
+		/* Survival stuff*/
+
+	UPROPERTY(BlueprintReadWrite, Replicated)
+	bool bIsAiming;
+
+	UFUNCTION(BlueprintCallable, Server, Reliable)
+	void ServerSetAimingStatus(bool isAiming);
+
+	class AItemActorBase* GetEquippedItemActor() const;
+	class USkeletalMeshComponent* GetEquippedWeaponMeshComponent() const;
+
+
+	ETurningInPlace TurningInPlace;
+	void TurnInPlace(float DeltaTime);
+
+public:
+
+
+
 
 };

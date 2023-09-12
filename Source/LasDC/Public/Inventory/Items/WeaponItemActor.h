@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "ItemActorBase.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimationAsset.h"
 #include "WeaponItemActor.generated.h"
 
 /*
@@ -58,19 +60,30 @@ public:
 
 	const UWeaponStaticData* GetWeaponStaticData() const;
 
+	UFUNCTION()
+	void SpawnBulletCasing();
+
 	UFUNCTION(BlueprintCallable)
 	void PlayWeaponEffects(const FHitResult& InHitResult);
+
+	UFUNCTION()
+	void PlayWeaponFiringEffectsInternal();
+
+
 
 
 	UFUNCTION(BlueprintPure)
 	FVector GetMuzzleLocation() const;
 
-	
+	UFUNCTION()
+		FORCEINLINE UMeshComponent* GetMeshComponent() { return MeshComponent; }
+
 
 protected:
 
+
 	UPROPERTY() //visuals only local
-	UMeshComponent* MeshComponent = nullptr;
+		UMeshComponent* MeshComponent = nullptr;
 
 	virtual void InitInternal() override;
 
@@ -87,7 +100,41 @@ protected:
 	void MulticastPlayWeaponEffects(const FHitResult& InHitResult);
 
 
+	/* Effektien logiikka*/
+	/*
+		kutsuaan abilitystä blueprint PlayWeaponFiringEffects()
+
+		PlayWeaponFiringEffects() -> ServerPlayWeaponFireEffects()  -> MultiCastPlayWeaponFireEffects() == Actual koodi
+
+		toinen tapa miten Pelkkä effectit thety:
+
+		Blueprinteistä: PlayWeaponEffects()
+						-SERVU HasAuthority() -> MULTICAST_Play_WeaponEffects() ==  (!Owner || Owner->GetLocalRole() != ROLE_AutonomousProxy) ->   PlayWeaponEffectsInternal() actual koodi
+						-EI SERVU: No Authority -> PlayWeaponEffectsInternal() Actual koodi
+	
+	*/
+
+
+	/* Eka kutsutaan lokaalisti play weapon firing*/
+	UFUNCTION(BlueprintCallable)
+	void PlayWeaponFiringEffects();
+
+
+
+	/* Play kutsuu tätä joka suoritetaan servulla*/
+	UFUNCTION(Server, Reliable)
+	void ServerPlayWeaponFireEffects();
+
+	/* Server play kutsuu tätä joka menee servulle JA clienteille Servulla kutsutaan, menee clienteillä*/
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCastPlayWeaponFireEffects();
+
+
 	//This does the execution, no communication, just play
 	void PlayWeaponEffectsInternal(const FHitResult& InHitResult);
 	
+public:
+
+	UFUNCTION(BlueprintCallable)
+		FTransform GetFireDirection(const FHitResult& HitTarget);
 };

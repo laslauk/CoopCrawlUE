@@ -36,6 +36,7 @@ struct FCharacterData {
 
 
 
+
 /* CHARACTER ANIMATION DATA*/
 
 USTRUCT(BlueprintType)
@@ -65,7 +66,8 @@ class UProjectileStaticData : public UObject {
 
 public:
 
-
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		bool bHasSplash;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	float BaseDamage;
@@ -105,7 +107,11 @@ public:
 	UNiagaraSystem* OnStopVFX = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-		USoundBase* OnStopSFX = nullptr;
+	USoundBase* OnStopSFX = nullptr;
+
+	UPROPERTY(EditAnywhere)
+	class UParticleSystem* TracerParticleSystem;
+
 
 };
 
@@ -154,6 +160,36 @@ public:
 
 
 
+USTRUCT(BlueprintType, Blueprintable)
+struct FCrossHairData {
+
+	GENERATED_BODY()
+
+
+
+public:
+
+		UPROPERTY(EditAnywhere, Category = Crosshairs)
+		class UTexture2D* CrossHairsCenter;
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+		class UTexture2D* CrossHairsBottom;
+
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+		class UTexture2D* CrossHairsRight;
+
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+		class UTexture2D* CrossHairsLeft;
+
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+		class UTexture2D* CrossHairsTop;
+
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+	float CrosshairSpread;
+
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+	FLinearColor CrosshairsColor;
+};
+
 
 /* WEAPON ITEM STATIC DATA*/
 
@@ -174,10 +210,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		UStaticMesh* StaticMesh;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	class UAnimationAsset* WeapoFireAnimation;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-		UAnimMontage* PrimaryActionMontage;
+	UAnimMontage* PrimaryActionMontage;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		float FireDelayTime = 1.0f;
+	
 
 	UPROPERTY(EditDefaultsOnly, BLueprintReadOnly)
 		float FireRate;
@@ -185,21 +226,38 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		float BaseDamage;
 
-	//Attack soundit on played by itemActor
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-		USoundBase* AttackSound;
+		TSubclassOf<AActor> FXActorOnPrimaryAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		TSubclassOf<class AProjectileBase> WeaponFireProjectileClass;
 
 
 	/* NOTE, even it is named AMmoTag, it is COUNT tag, TODO fix names, can be used for other stacking items such as potion etc.*/
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		 FGameplayTag AmmoTag;
 
+
+	/* NOTE: N‰m‰ soitetaan Animaatiosta nyt Notifyill‰ koska parempi ajottaa siell‰,  MUTTA TODO Ett‰ data tulisi t‰‰lt‰ eik‰ m‰‰ritet‰ vaan animaatioissa eirkseen, parempi
+	olla yhdess‰ paikassa kaikki m‰‰ritetty
+	
+	*/
+
+	//Attack soundit on played by itemActor
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		USoundBase* AttackSound;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		UNiagaraSystem* MuzzleFireEffect = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		 FCrossHairData CrosshairData;
+
 };
 
 
 
 /* Ammunition item */
-
 UCLASS(BlueprintType, Blueprintable)
 class UAmmoItemStaticData : public UItemStaticData {
 
@@ -208,7 +266,6 @@ class UAmmoItemStaticData : public UItemStaticData {
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		UStaticMesh* StaticMesh = nullptr;
-
 };
 
 
@@ -231,8 +288,15 @@ enum class EFoot : uint8 {
 
 
 UENUM(BlueprintType)
-enum class EMovementDirectionType : uint8 {
+enum class ECameraAimMode : uint8 {
+	None UMETA(DisplayName = "FreeCameraRotation"),
+	CarryingWeapon UMETA(DisplayName = "CarryingWeapon"),
+	Aiming UMETA(DisplayName = "Aiming")
+};
 
+UENUM(BlueprintType)
+enum class EMovementDirectionType : uint8 {
+	
 	None UMETA(DisplayName = "None"),
 	OrientRotationToMovement UMETA(DisplayName = "OrientRotationToMovement"),
 	Strafe UMETA(DisplayName = "Strafe")
@@ -240,3 +304,11 @@ enum class EMovementDirectionType : uint8 {
 
 };
 
+
+UENUM(BlueprintType)
+enum class ETurningInPlace : uint8 {
+	NotTurning UMETA(DisplayName = "Not Turning"),
+	Left UMETA(DisplayName = "Turning Left"),
+	Right UMETA(DisplayName = "Turning Right"),
+	MAX UMETA(DisplayName = "DefaultMax")
+};

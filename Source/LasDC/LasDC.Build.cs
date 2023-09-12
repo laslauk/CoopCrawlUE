@@ -9,10 +9,11 @@ public class LasDC : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "NetCore", "Engine",
-			"LasDC", "InputCore", "GameplayAbilities", "GameplayTags", 
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "NetCore", "Engine", "OnlineSubsystem",
+		            "LasDC", "InputCore", "GameplayAbilities", "GameplayTags", 
 			"GameplayTasks", "HeadMountedDisplay", "Niagara",
-			"EnhancedInput", "MotionWarping", "UMG", "Slate", "SlateCore"});
+			"EnhancedInput", "MotionWarping", "UMG", "Slate", "SlateCore", "ModularGameplay",
+                });
 
 
         PublicIncludePaths.AddRange(new string[] { 
@@ -20,5 +21,8 @@ public class LasDC : ModuleRules
 			Path.Combine(ModuleDirectory, "Public/DataAssets")
 		
 		});
+
+
     }
 }
+			

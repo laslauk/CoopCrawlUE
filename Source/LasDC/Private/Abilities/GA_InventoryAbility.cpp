@@ -32,7 +32,6 @@
 
 
 UInventoryItemInstance* UGA_InventoryAbility::GetEquippedItemInstance() const {
-	
 	return GetInventoryComponent() ? GetInventoryComponent()->GetEquippedItem() : nullptr;
 }
 
@@ -78,12 +77,9 @@ AItemActorBase* UGA_InventoryAbility::GetEquippedItemActor()  {
 
 
 
-
+/* MAKE VITTU SURE ETTÄ BLUEPRINT ACTOR ON OIKEA TYYPPI EIKÄ VAAN ITEMI JOS KUTSUT TÄTÄ */
 AWeaponItemActor* UGA_InventoryAbility::GetEquippedWeaponItemActor()  {
 
-	if (GetEquippedItemActor() == nullptr) {
-		UE_LOG(LogTemp, Warning, TEXT(" --------  UGA_InventoryAbility::GetEquippedWeaponItemActor() NULL !!!!"));
-	}
 	return Cast<AWeaponItemActor>(GetEquippedItemInstance()->GetItemActor());
 }
 

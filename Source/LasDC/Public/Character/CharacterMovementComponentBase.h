@@ -6,6 +6,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "CrawlCommonTypes.h"
 #include "GameplayTagContainer.h"
+
 #include "CharacterMovementComponentBase.generated.h"
 
 
@@ -19,8 +20,14 @@ class LASDC_API UCharacterMovementComponentBase : public UCharacterMovementCompo
 	
 public:
 
+
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const;
+
+
 	bool TryTraversal(UAbilitySystemComponent* ASC);
 	virtual void BeginPlay() override;
+
+	 void SetupAbilitySystem(UAbilitySystemComponent* ASC);
 
 
 	UFUNCTION(BlueprintPure)
@@ -28,7 +35,6 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetMovementDirectionType(EMovementDirectionType InMovementDirectionType);
-
 
 
 	/* Use gameplay effect to handle rotation setting, We have specific tag that we apply to character from that effect */
@@ -47,8 +53,12 @@ protected:
 		TArray<TSubclassOf<UGameplayAbility>> TraversalAbilitiesOrdered;
 
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, ReplicatedUsing = OnRep_MovementDirectionType)
 	EMovementDirectionType MovementDirectionType;
 	
+	UFUNCTION()
 	void HandleMovementDirection();
+
+	UFUNCTION()
+	void OnRep_MovementDirectionType();
 };

@@ -24,6 +24,14 @@ void UAttributeSetBase::PostGameplayEffectExecute(const struct FGameplayEffectMo
 	{
 		// Handle health  changes.
 		SetHealth(FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
+		ACharacterBaseGAS* OwningAvatarChar = Cast<ACharacterBaseGAS>(GetOwningAbilitySystemComponent()->GetAvatarActor());
+
+		if (OwningAvatarChar) {
+
+			OwningAvatarChar->MulticastDamageReact();
+
+		}
+		/* PLAY HIT REACTION TÄÄLLÄ ?*/
 
 	}
 

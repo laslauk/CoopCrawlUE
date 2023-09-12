@@ -20,8 +20,23 @@ public:
 	const UProjectileStaticData* GetProjectileStaticData() const;
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	UPROPERTY(BlueprintReadOnly, Replicated)
+	UPROPERTY(EditAnywhere, Replicated, BlueprintReadWrite)
 	TSubclassOf<UProjectileStaticData> ProjectileDataClass;
+
+	UFUNCTION()
+ void OnBoxCollisionBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+			bool bFromSweep, const FHitResult& SweepResult);
+
+
+	
+	/*	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+			bool bFromSweep, const FHitResult& SweepResult);
+
+			*/
+	/*
+	(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, 
+		bool bFromSweep, const FHitResult& SweepResult);
+		*/
 
 protected:
 	// Called when the game starts or when spawned
@@ -30,18 +45,24 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 
-	UPROPERTY()
+	UFUNCTION()
+	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit); 
+
+
+	UPROPERTY(BlueprintReadWrite)
 		class UProjectileMovementComponent* ProjectileMovementComponent = nullptr;
+
+	UPROPERTY(EditAnywhere)
+	class UBoxComponent* CollisionBox;
 
 	void DebugDrawPath() const;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite,EditAnywhere)
+	class UStaticMeshComponent* StaticMeshComponent = nullptr;
 
-		class UStaticMeshComponent* StaticMeshComponent = nullptr;
-
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	void OnProjectileStop(const FHitResult& ImpactResult);
 
-
+	class UParticleSystemComponent* TracerParticleSystemComponent;
 
 };

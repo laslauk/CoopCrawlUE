@@ -45,7 +45,6 @@ void UGA_Crouch::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGame
 bool UGA_Crouch::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayTagContainer* SourceTags, const FGameplayTagContainer* TargetTags, OUT FGameplayTagContainer* OptionalRelevantTags) const {
 
-	UE_LOG(LogTemp, Warning, TEXT("CROUCH CanActivateAbility ABILITY"));
 	if (!Super::CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, OptionalRelevantTags)) {
 		return false;
 	}
@@ -53,6 +52,9 @@ bool UGA_Crouch::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, con
 	const ACharacter* Character = CastChecked<ACharacter>(ActorInfo->AvatarActor.Get(), ECastCheckedType::NullAllowed);
 
 	//use unreal character's existing canCrouch function
+	if (Character->CanCrouch()) {
+
+	}
 	return Character->CanCrouch();
 
  }

@@ -2,7 +2,10 @@
 
 
 #include "Abilities/GameplayAbilityBase.h"
+
+#include "Actors/ProjectileBase.h"
 #include "CharacterBaseGAS.h"
+#include "CrawlGameStatics.h"
 #include "AbilitySystemComponent.h"
 
 	/** Actually activate ability, do not call this directly */
@@ -80,6 +83,7 @@
 
 
 
+
 /** Native function, called if an ability ends normally or abnormally. If bReplicate is set to true, try to replicate the ending to the client/server */
  void UGameplayAbilityBase::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
 	bool bReplicateEndAbility, bool bWasCancelled) {
@@ -104,3 +108,29 @@
 
 
 }
+
+ void UGameplayAbilityBase::SetCameraMode(ECameraAimMode CameraMode)
+ {
+ }
+
+ void UGameplayAbilityBase::ClearCameraMode()
+ {
+ }
+
+ AController* UGameplayAbilityBase::GetControllerFromActorInfo() const
+ {
+	 AActor* Character = GetAvatarActorFromActorInfo();
+
+	 if (Cast<ACharacterBaseGAS>(Character)) {
+		 return Cast<ACharacterBaseGAS>(Character)->GetController();
+	 }
+
+	 return nullptr;
+ }
+
+
+ void UGameplayAbilityBase::LaunchProjectileActorServer_Implementation(UObject* WorldContextObject, TSubclassOf< AProjectileBase> ProjectileActorClass, FTransform Transform, AActor* Owner, APawn* Instigator)
+ {
+	
+	 UCrawlGameStatics::LaunchProjectileActor(WorldContextObject, ProjectileActorClass, Transform, Owner, Instigator);
+ }

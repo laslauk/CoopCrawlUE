@@ -12,6 +12,8 @@
 
 /* Physical representation of a item in world that can be dropped, references information about its instance data*/
 
+/* KUN EQUIPOATAAN - INVENTORY ITEM INSTANCESSA ONEQUIPPED Handlaa uuden spawnaamisen */
+
 UCLASS()
 class LASDC_API AItemActorBase : public AActor
 {
@@ -21,9 +23,8 @@ public:
 	// Sets default values for this actor's properties
 	AItemActorBase();
 
+
 	virtual bool ReplicateSubobjects(UActorChannel* channel, FOutBunch* Bunch, FReplicationFlags* RepFlags) override;
-
-
 
 
 
@@ -66,14 +67,34 @@ public:
 	UPROPERTY(EditAnywhere, Replicated)
 	int32 Quantity = 1;
 
+
+
+	/* EVENTS */
 	UFUNCTION()
-		void OnPickupCollisionOverlap(UPrimitiveComponent* OverlappedComponent, AActor* otherActor, UPrimitiveComponent* otherComp,
+		void OnPickupCollisionOverlapStart(UPrimitiveComponent* OverlappedComponent, AActor* otherActor, UPrimitiveComponent* otherComp,
 			 int32 otherBodyIndex, bool bFromSweep, const FHitResult& sweepResult);
 
+	UFUNCTION()
+		void OnPickupCollisionOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* otherActor,
+			UPrimitiveComponent* otherComp, int32 otherBodyIndex);
+
+	/** Delegate for notification when a wake event is fired by physics*/
+
+
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UPROPERTY(VisibleAnywhere, Category  =" Item properties")
+	class UWidgetComponent* PickupTextWidget;
+
 
 public:
 
 	virtual void InitInternal();
+
+	void ShowPickupWidget(bool bShowWidget);
+
+private:
+	UPROPERTY(EditAnywhere, Category = "Item Properties")
+		bool bOverlapPicksup = false;
 
 };

@@ -4,16 +4,22 @@
 #include "CharacterBaseGAS.h"
 #include "PlayerStateBase.h"
 #include "AbilitySystemComponent.h"
+#include "Abilities/GameplayAbility.h"
+#include "Abilities/GameplayAbilityTargetTypes.h"
+#include "Abilities/GameplayAbilityTypes.h"
+
 #include "Net/UnrealNetwork.h"
 #include "InventoryItemInstance.h"
 #include "InventoryComp.h"
 #include "Components/CapsuleComponent.h"
 #include "ActorComponents/SurvivalStatsComponent.h"
-
-
+#include "ItemActorBase.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "ActorComponents/MotionWarpingComponentBase.h"
 #include "InventoryList.h"
+#include "Attributes/AttributeSetAiming.h"
+
 #include "CrawlCommonTypes.h"
 #include "CharacterMovementComponentBase.h"
 #include "PlayerControllerBase.h"
@@ -52,14 +58,24 @@ ACharacterBaseGAS::ACharacterBaseGAS()
 }
 */
 
+ACharacterBaseGAS::ACharacterBaseGAS()
+{
+
+}
+
 ACharacterBaseGAS::ACharacterBaseGAS(const FObjectInitializer& ObjectInitializer) :
 	Super(ObjectInitializer.SetDefaultSubobjectClass<UCharacterMovementComponentBase>
-		(ACharacter::CharacterMovementComponentName)) {
+		(CharacterMovementComponentName)) {
 
 	
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-//	PrimaryActorTick.bCanEverTick = true;
-	bReplicates = true;
+	PrimaryActorTick.bCanEverTick = true;
+	NetUpdateFrequency = 66.f; //Common values
+	MinNetUpdateFrequency = 33.f;//Common value for fast pace shooter, also server tickrate in DefaultEngine.ini, onlinesubsystem utils
+
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 0.f, 560.f);
+
+	//bReplicates = true;
 	//bAlwaysRelevant = true;
 	//AbilitySystemComp = CreateDefaultSubobject<UAbilitySystemComponent>("AbilitySystemComp");
 	//AbilitySystemComp->SetIsReplicated(true);
@@ -79,8 +95,22 @@ ACharacterBaseGAS::ACharacterBaseGAS(const FObjectInitializer& ObjectInitializer
 	MotionWarpingComponent = CreateDefaultSubobject<UMotionWarpingComponentBase>(TEXT("MotionWarpingComponent"));
 	///SurvivalStatsComp = CreateDefaultSubobject<USurvivalStatsComponent>(TEXT("Survival Stats Component"));
 //	SurvivalStatsComp->RegisterComponent();
+	TurningInPlace = ETurningInPlace::NotTurning;
 	
-	
+}
+
+void ACharacterBaseGAS::SimProxiesTurn()
+{
+
+	if (IsEquippingItem()) 
+	{
+		bRotateRootBone = false;
+	}
+}
+
+void ACharacterBaseGAS::MulticastDamageReact_Implementation()
+{
+	PlayHitReactMontage();
 }
 
 //void ACharacterBaseGAS::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) {
@@ -88,6 +118,22 @@ ACharacterBaseGAS::ACharacterBaseGAS(const FObjectInitializer& ObjectInitializer
 
 
 //}
+
+void ACharacterBaseGAS::Tick(float DeltaTime) {
+	Super::Tick(DeltaTime);
+
+
+	if(GetLocalRole() > ENetRole:: ROLE_SimulatedProxy)  // > simproxy, on actively locally controlled or authority.
+	{ //lasketaan autonomnousproxy, authority, max
+		AimOffset(DeltaTime);
+
+	}
+	else {
+		//on sim proxy, eli toiset actorit jotka jokuj c lient n‰kee jota ei ite ohjaa
+		SimProxiesTurn();
+	}
+	
+}
 
 
 void ACharacterBaseGAS::Die() {
@@ -109,6 +155,23 @@ UFootstepsComponent* ACharacterBaseGAS::GetFootStepsComponent() const {
 	return FootstepsCom;
 }
 
+APlayerControllerBase* ACharacterBaseGAS::GetPlayerControllerBase()
+{
+	return PlayerControllerBase;
+}
+
+
+
+void ACharacterBaseGAS::PostInitializeComponents() {
+
+	Super::PostInitializeComponents();
+
+	
+
+
+}
+
+
 void ACharacterBaseGAS::ResposneToLasseDelegate(float a, float b) {
 	UE_LOG(LogTemp, Warning, TEXT("Hello: %f, %f"), a, b);
 }
@@ -116,11 +179,8 @@ void ACharacterBaseGAS::ResposneToLasseDelegate(float a, float b) {
 void ACharacterBaseGAS::Landed(const FHitResult& Hit) {
 	Super::Landed(Hit);
 	if (AbilitySystemComp) {
-
 		AbilitySystemComp->RemoveActiveEffectsWithTags(InAirTags);
-
-
-
+		AbilitySystemComp->RemoveActiveGameplayEffectBySourceEffect(FallingGameplayEffect, AbilitySystemComp);
 	}
 }
 
@@ -129,7 +189,11 @@ void ACharacterBaseGAS::TryJump() {
 
 
 	if(CharacterMovementComponent) {
+		UE_LOG(LogTemp, Warning, TEXT("> [1/2]ACharacterBase] Try Jump ump.."));
 	CharacterMovementComponent->TryTraversal(AbilitySystemComp);
+	}
+	else {
+		UE_LOG(LogTemp, Warning, TEXT("> [ERROR /2]ACharacterBase] CharacterMovementComponent nullptr.."));
 	}
 }
 
@@ -166,11 +230,39 @@ void ACharacterBaseGAS::GiveAbilities() {
 	
 	if (HasAuthority() && AbilitySystemComp) {
 		for (auto DefaultAbility : CharacterData.Abilities) {
-			AbilitySystemComp->GiveAbility(FGameplayAbilitySpec(DefaultAbility));
+			FGameplayAbilitySpecHandle AbilitySpecHandle = AbilitySystemComp->GiveAbility(FGameplayAbilitySpec(DefaultAbility));
+
+
+		
+			if (FGameplayAbilitySpec* AbilitySpec =AbilitySystemComp->FindAbilitySpecFromHandle(AbilitySpecHandle)) {
+				if (AbilitySpec->Ability->AbilityTags.HasTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Combat.Aim"))))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("IS AIMING ABIITY!! %s"), *AbilitySpec->GetDebugString());
+					GetPlayerController()->AimAbility = AbilitySpecHandle;
+				}
+			}
+			
+			
+
+			
+
+		
 		}
 	}
 
 }
+
+
+
+
+APlayerControllerBase* ACharacterBaseGAS::GetPlayerController() {
+
+	return PlayerControllerBase;
+}
+
+
+
+
 
 void ACharacterBaseGAS::ApplyStartupEffects() {
 
@@ -206,6 +298,40 @@ void ACharacterBaseGAS::OnDelegated(float a, float b) {
 
 }
 
+void ACharacterBaseGAS::Falling()
+{
+	if (!AbilitySystemComp) { 
+		UE_LOG(LogTemp, Warning, TEXT("EI APBILTIY SYMST!"));
+		return; }
+	
+
+	FGameplayEffectContextHandle EffectContext = AbilitySystemComp->MakeEffectContext();
+	FGameplayEffectSpecHandle SpecHandle = AbilitySystemComp->MakeOutgoingSpec(FallingGameplayEffect, 1, EffectContext);
+	
+	if (SpecHandle.IsValid()) {
+
+		FActiveGameplayEffectHandle ActiveGEHandle  = AbilitySystemComp->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+		if (ActiveGEHandle.WasSuccessfullyApplied()) {
+			UE_LOG(LogTemp, Warning, TEXT("APPLIED ON FALLING"));
+		}
+		else {
+			UE_LOG(LogTemp, Warning, TEXT("EI APBILTIY Falling SYMST!"));
+
+
+		}
+	}
+	else {
+		UE_LOG(LogTemp, Warning, TEXT("EI O VALID SPEC HADLe"));
+
+	}
+	
+
+
+}
+
+void ACharacterBaseGAS::ServerSetAimingStatus_Implementation(bool isAiming) {
+	bIsAiming = isAiming;
+}
 
 
 //PossessedBy - Server Only
@@ -215,12 +341,14 @@ void ACharacterBaseGAS::PossessedBy(AController* NewController) {
 
 	APlayerStateBase* PS = GetPlayerState<APlayerStateBase>();
 	SetAutonomousProxy(true);
+
+	// ASC MixedMode replication requires that the ASC Owner's Owner be the Controller.
+	SetOwner(NewController);
+
 	if (PS)
 	{
 		PS_ref = PS;
-
-
-		
+		PlayerControllerBase = Cast<APlayerControllerBase>(PS_ref->GetPlayerController());
 
 
 		// Set the ASC on the Server. Clients do this in OnRep_PlayerState()
@@ -250,6 +378,10 @@ void ACharacterBaseGAS::PossessedBy(AController* NewController) {
 				FGameplayTag::RequestGameplayTag(TEXT("State.Ragdoll"),
 				EGameplayTagEventType::NewOrRemoved)
 		).AddUObject(this, &ACharacterBaseGAS::OnRagdollStateTagChanged);
+
+		
+		
+
 
 
 		CameraLockedDelegate.AddUniqueDynamic(Cast<APlayerControllerBase>(GetController()), &APlayerControllerBase::CameraLocked);
@@ -366,7 +498,6 @@ void ACharacterBaseGAS::OnHealthAttributeChanged(const FOnAttributeChangeData& D
 		
 
 	}
-
 }
 
 
@@ -377,8 +508,6 @@ void ACharacterBaseGAS::OnHealthAttributeChanged(const FOnAttributeChangeData& D
 void ACharacterBaseGAS::BeginPlay()
 {
 	Super::BeginPlay();
-
-
 
 
 	
@@ -393,12 +522,7 @@ UCameraComponent* ACharacterBaseGAS::GetFollowCamera()
 
 
 
-// Called every frame
-void ACharacterBaseGAS::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
 
-}
 /*
 // Called to bind functionality to input
 void ACharacterBaseGAS::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -482,7 +606,34 @@ void ACharacterBaseGAS::SetCharacterData(const FCharacterData& InCharacterData) 
 
 }
 
+bool ACharacterBaseGAS::IsEquippingItem() const {
+	if (PS_ref) {
+		if (PS_ref->InventoryComp) {
+			return PS_ref->InventoryComp->IsOwnerEquippingItem();
+		}
+	} 
+	return false;
+}
 
+AItemActorBase* ACharacterBaseGAS::GetEquippedItemActor() const
+{
+	if (PS_ref == nullptr) return nullptr;
+	if (PS_ref->InventoryComp == nullptr) return nullptr;
+	if (PS_ref->InventoryComp->GetEquippedItem() == nullptr) return nullptr;
+	return PS_ref->InventoryComp->GetEquippedItem()->GetItemActor();
+}
+
+USkeletalMeshComponent* ACharacterBaseGAS::GetEquippedWeaponMeshComponent() const
+{
+
+	AItemActorBase* Item = GetEquippedItemActor();
+	if (Item) {
+
+		return	Item->FindComponentByClass<USkeletalMeshComponent>();
+	
+	}
+	return nullptr;
+}
 
 
 void ACharacterBaseGAS::OnRep_CharacterData() {
@@ -507,13 +658,33 @@ void ACharacterBaseGAS::PostLoad() {
 	}
 }
 
+void ACharacterBaseGAS::PlayHitReactMontage()
+{
+	if (HitReactMontage) {
+
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		if(AnimInstance) 
+		{
+		AnimInstance->Montage_Play(HitReactMontage);
+		FName SectionName("Front");
+		AnimInstance->Montage_JumpToSection(SectionName);
+		}
+	
+	}
+}
+
 void ACharacterBaseGAS::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-
 	//jos on replicated propertry ni pit‰‰ teh‰ t‰ll‰ jotain??
 	DOREPLIFETIME(ACharacterBaseGAS, CharacterData);
+	DOREPLIFETIME(ACharacterBaseGAS, bIsAiming);
+	//DOREPLIFETIME(ACharacterBaseGAS, OverlappingItem);
+	DOREPLIFETIME(ACharacterBaseGAS, Test);
+	DOREPLIFETIME_CONDITION(ACharacterBaseGAS, OverlappingItem, COND_OwnerOnly); //OverlappingItem will replicate to only playerClients who owns this CharacteRBaseGAS pawn
 }
+
+
 
 
  void ACharacterBaseGAS::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) {
@@ -538,18 +709,20 @@ void ACharacterBaseGAS::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 			 //The ASC holds its current active GameplayEffects in FActiveGameplayEffectsContainer ActiveGameplayEffects
 			 FActiveGameplayEffectHandle ActiveGEHandle = AbilitySystemComp->ApplyGameplayEffectSpecToSelf(*CrouchSpecHandle.Data.Get());
 
-
 			 //Debug
 			 if (ActiveGEHandle.WasSuccessfullyApplied()) {
-				 UE_LOG(LogTemp, Warning, TEXT("Ability %s failed to apply crouch effect %s"), *GetName(), *GetNameSafe(CrouchStateEffect));
+				 UE_LOG(LogTemp, Warning, TEXT("Ability %s Succesfully applied crouch effect %s"), *GetName(), *GetNameSafe(CrouchStateEffect));
 			 }
 		 }
 
 	 }
 
+ }
 
-
-
+ bool ACharacterBaseGAS::IsAiming() const {
+	
+	 /* checkataan onko ability systemill‰ effect tag? */
+	 return bIsAiming;
  }
 
 
@@ -569,3 +742,140 @@ void ACharacterBaseGAS::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 
 	 return MotionWarpingComponent;
  }
+
+ void ACharacterBaseGAS::AimOffset(float DeltaTime)
+ {
+	 
+	 if (!PS_ref) { return; }
+	 if (!PS_ref->InventoryComp) { return; }
+	 if (PS_ref->InventoryComp->CurrentEquippedItem == nullptr) { return; }
+	
+	 FVector Velocity = GetVelocity();
+	 Velocity.Z = 0.f;
+	 float Speed = Velocity.Size();
+	 bool bIsInAir = GetCharacterMovement()->IsFalling();
+
+	 if (!bIsInAir && Speed == 0.f) 
+	 { //standing still not jumping
+		 bRotateRootBone = true;
+		 FRotator CurrentAimRotation = FRotator(0.f, GetBaseAimRotation().Yaw, 0.f);
+		 FRotator DeltaAimRotation = UKismetMathLibrary::NormalizedDeltaRotator(CurrentAimRotation, StartingAimRotation);
+		// bUseControllerRotationYaw = true;
+
+		 if (TurningInPlace == ETurningInPlace::NotTurning) {
+			 InterpAO_Yaw = AO_Yaw;
+		 }
+
+		 AO_Yaw = DeltaAimRotation.Yaw;
+		 TurnInPlace(DeltaTime);
+
+	 }
+	 if (Speed > 0.f || bIsInAir) { //running or jumping
+		 StartingAimRotation = FRotator(0.f, GetBaseAimRotation().Yaw, 0.f);
+		// bUseControllerRotationYaw = true;
+		 TurningInPlace = ETurningInPlace::NotTurning;
+		 AO_Yaw = 0.f;
+		 bRotateRootBone = false;
+	 }
+
+	 /* ONGELMANA: LIITTYY UNREALIN ROTATION PACKAGAUKSEEN KUN LƒHETTƒƒ OVER NETWORK, koska compressaa. rotation compressed down to 5 bytes, 
+	 jos on negative, niin se compressetaan unsigned valuee range [0,360). Joten ei pysty noin, pit‰‰ converttaa, */
+	 AO_Pitch = GetBaseAimRotation().Pitch;
+
+	 if (AO_Pitch > 90.f && !IsLocallyControlled()) { //tehd‰‰n vaan clienteille jotka ei o local, vaan joku toinen hahmo toisen n‰ˆ‰kˆkulmasta
+		 //mapataan pitch from [270,360) to [-90,0)
+		 FVector2D InRange(270.f, 360.f);
+		 FVector2D OutRange(-90.f, 0.);
+		 AO_Pitch = FMath::GetMappedRangeValueClamped(InRange, OutRange, AO_Pitch);
+	 }
+	
+
+
+	
+	 /* > !HasAuthority ja IsLocallyControlled ---- Character joka on Clientill‰ ja se mit‰ siin‰ ohjataan* /
+	 /* > HasAuthority() ja !isLocallyControlled --- Character joka exists servulla, mutta ei controlloitu
+	 * 
+	 ** */
+	 /*
+	 * 
+	 * 
+	 if (HasAuthority() && !IsLocallyControlled()) {
+		 UE_LOG(LogTemp, Warning, TEXT("AO Pithc: %f"), AO_Pitch);
+		 
+
+	 }
+
+	 */
+
+ }
+
+ void ACharacterBaseGAS::TurnInPlace(float DeltaTime) {
+
+	 if (AO_Yaw > 90.f) { //jos kattoo oikealle niin --> 90 kohti
+		 TurningInPlace = ETurningInPlace::Right;
+	 }
+	 else if (AO_Yaw < -90.f) { //Vasemmallep‰in, jos reachaa ni sit pit‰isi turnaa, eli kamerna mukana
+		 TurningInPlace = ETurningInPlace::Left;
+	 }
+
+	 if (TurningInPlace != ETurningInPlace::NotTurning) {
+		 InterpAO_Yaw = FMath::FInterpTo(InterpAO_Yaw, 0.f, DeltaTime, 10.f);
+		 AO_Yaw = InterpAO_Yaw;
+
+
+		 if (FMath::Abs(AO_Yaw) < 15.f) {
+			 TurningInPlace = ETurningInPlace::NotTurning;
+			 StartingAimRotation = FRotator(0.f, GetBaseAimRotation().Yaw, 0.f);
+		 }
+
+	 }
+
+ }
+
+ void ACharacterBaseGAS::OnRep_OverlappingItem(AItemActorBase* LastValue)
+ {
+	// GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Blue, FString::Printf(TEXT("Item: %s,  %s"), *GetOwner()->GetName(), *ItemStaticData->Name.ToString()));
+	 GEngine->AddOnScreenDebugMessage(-1, 2, FColor::Blue, FString::Printf(TEXT("On_Rep Overlapping Item Called")));
+	 UE_LOG(LogTemp, Warning, TEXT("OnRep_OverlappingItem called"));
+	 if (OverlappingItem) {
+		 OverlappingItem->ShowPickupWidget(true);
+	 }
+	
+	 if(LastValue)
+	 {
+		 LastValue->ShowPickupWidget(false);
+	 }
+ }
+
+ void ACharacterBaseGAS::SetOverlappingItem(AItemActorBase* Item)
+ {
+	 GEngine->AddOnScreenDebugMessage(-1, 2, FColor::Blue, FString::Printf(TEXT("SetOverlappingItem set")));
+	 UE_LOG(LogTemp, Warning, TEXT("SetOverlappingItem set"));
+
+
+
+	 if (OverlappingItem) {
+
+		 OverlappingItem->ShowPickupWidget(false);
+
+	 }
+
+
+	 OverlappingItem = Item;
+
+	 /* If local , not on server*/
+	 if (IsLocallyControlled())  /* for server to showw*/
+	 {
+		 if (OverlappingItem)
+		 {
+			 OverlappingItem->ShowPickupWidget(true);
+		 }
+	 }
+ } 
+
+ void ACharacterBaseGAS::OnRep_Test()
+ {
+	 UE_LOG(LogTemp, Warning, TEXT("On TEST TESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTEST!"));
+
+ }
+

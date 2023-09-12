@@ -6,10 +6,16 @@
 #include "CrawlCommonTypes.h"
 #include "Character/CharacterBaseGAS.h"
 #include "AbilitySystemComponent.h"
-
+#include "Components/WidgetComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "ItemActorBase.h"
+#include "PlayerStateBase.h"
+#include "GameplayAbilitySpec.h"
+#include "PlayerControllerBase.h"
 #include "InventoryList.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/Pawn.h"
 #include "Net/UnrealNetwork.h"
 
 void UInventoryItemInstance::OnRep_Equipped() {
@@ -37,8 +43,7 @@ const UItemStaticData* UInventoryItemInstance::GetItemStaticData() const{
  }
 
 AItemActorBase* UInventoryItemInstance::GetItemActor() const {
-
-
+	
 	return ItemActor;
 }
 
@@ -48,9 +53,11 @@ void UInventoryItemInstance::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UInventoryItemInstance, ItemStaticDataClass);
-	DOREPLIFETIME(UInventoryItemInstance, bEquipped)
-	DOREPLIFETIME(UInventoryItemInstance, ItemActor)
-	DOREPLIFETIME(UInventoryItemInstance, Quantity)
+	DOREPLIFETIME(UInventoryItemInstance, bEquipped);
+	DOREPLIFETIME(UInventoryItemInstance, ItemActor);
+	DOREPLIFETIME(UInventoryItemInstance, Quantity);
+
+	//	DOREPLIFETIME(UInventoryItemInstance, OwningPlayerState)
 
 }
 
@@ -60,6 +67,9 @@ void UInventoryItemInstance::OnDropped(AActor* InOwner) {
 		ItemActor->OnDropped();
 		OwningPlayerState = nullptr;
 		bEquipped = false;
+
+
+
 
 		TryRemoveAbilities(InOwner);
 		TryRemoveEffects(InOwner);
@@ -81,8 +91,13 @@ void UInventoryItemInstance::OnEquipped(AActor* InOwner) {
 			FTransform Transform;
 			ItemActor = World->SpawnActorDeferred<AItemActorBase>(StaticData->ItemActorClass, Transform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 			ItemActor->Init(this);
+			ItemActor->SetOwner(InOwner);
 			ItemActor->OnEquipped();
 			ItemActor->FinishSpawning(Transform);
+
+			TimeLastEquipped = World->GetTimeSeconds();
+		
+
 			if (IsValid(ItemActor))
 			{
 				UE_LOG(LogTemp, Warning, TEXT("!!!!!!!!!! Spawnattiin item actor: %s "), *ItemActor->GetName());
@@ -95,7 +110,6 @@ void UInventoryItemInstance::OnEquipped(AActor* InOwner) {
 
 			if( ACharacter* Character = Cast <ACharacter>(InOwner))
 			{
-
 				if (USkeletalMeshComponent* SkeletalMesh = Character ? Character->GetMesh() : nullptr)
 				{
 					ItemActor->AttachToComponent(SkeletalMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, StaticData->WeaponAttachmentSocketName);
@@ -162,19 +176,81 @@ void UInventoryItemInstance::AddItems(int32 Count)
 
 }
 
+void UInventoryItemInstance::ComputeSpreadRange(float& MinSpread, float& MaxSpread)
+{
+
+//	HeatToSpreadCurve.GetRichCurveConst()->GetValueRange(/*out*/ MinSpread, /*out*/ MaxSpread);
+
+}
+
+void UInventoryItemInstance::ComputeHeatRange(float& MinHeat, float& MaxHeat)
+{
+
+	/* JOTAIN CURVEJA ?*/
+	float Min1 = 1;
+	float Max1 = 1;
+	//HeatToHeatPerShotCurve.GetRichCurveConst()->GetTimeRange(/*out*/ Min1, /*out*/ Max1);
+
+	float Min2 = 1;
+	float Max2 = 1;
+	//HeatToCoolDownPerSecondCurve.GetRichCurveConst()->GetTimeRange(/*out*/ Min2, /*out*/ Max2);
+
+	float Min3 = 1;
+	float Max3 = 1;
+	//HeatToSpreadCurve.GetRichCurveConst()->GetTimeRange(/*out*/ Min3, /*out*/ Max3);
+
+	MinHeat = FMath::Min(FMath::Min(Min1, Min2), Min3);
+	MaxHeat = FMath::Max(FMath::Max(Max1, Max2), Max3);
+
+
+}
+
+bool UInventoryItemInstance::UpdateSpread(float DeltaSeconds)
+{
+	const float TimeSinceFired = GetWorld()->TimeSince(LastFireTime);
+
+	if (TimeSinceFired > SpreadRecoveryCooldownDelay)
+	{
+		const float CooldownRate = HeatToCoolDownPerSecondCurve.GetRichCurveConst()->Eval(CurrentHeat);
+		CurrentHeat = ClampHeat(CurrentHeat - (CooldownRate * DeltaSeconds));
+		CurrentSpreadAngle = HeatToSpreadCurve.GetRichCurveConst()->Eval(CurrentHeat);
+	}
+
+	float MinSpread;
+	float MaxSpread;
+	ComputeSpreadRange(/*out*/ MinSpread, /*out*/ MaxSpread);
+
+	return FMath::IsNearlyEqual(CurrentSpreadAngle, MinSpread, KINDA_SMALL_NUMBER);
+}
+
+bool UInventoryItemInstance::UpdateMultipliers(float DeltaSeconds)
+{
+	return false;
+}
+
 
 
 void UInventoryItemInstance::TryGrantAbilities(AActor* InOwner) {
 
 	
-	if (InOwner && InOwner->HasAuthority()) {
-		if (UAbilitySystemComponent* AbilityComponent = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InOwner)) {
+	//if (InOwner && InOwner->HasAuthority()) {
+		if (UAbilitySystemComponent* AbilityComponent = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InOwner))
+		{
 			const UItemStaticData* StaticData = GetItemStaticData();
-			for (auto ItemAbility : StaticData->GrantedAbilities) {
-				GrantedAbilityHandles.Add(AbilityComponent->GiveAbility(FGameplayAbilitySpec(ItemAbility)));
+			for (auto ItemAbility : StaticData->GrantedAbilities) 
+			
+				{
+					GrantedAbilityHandles.Add(AbilityComponent->GiveAbility(FGameplayAbilitySpec(ItemAbility)));
+
+
+				//	UE_LOG(LogTemp, Warning, TEXT("------ TRY GRANT: InOwner %s"), *->GetName());
+		
+
+				Cast<APlayerControllerBase>(Cast<APlayerStateBase>(AbilityComponent->GetOwner())->GetPlayerController())->ShootAbility = GrantedAbilityHandles[0];
+			
 			}
 		}
-	}
+	//}
 	
 }
 
@@ -210,6 +286,17 @@ void UInventoryItemInstance::TryApplyEffects(AActor* InOwner) {
 	}
 }
 
+void UInventoryItemInstance::AddSpread()
+{
+	// Sample the heat up curve
+	const float HeatPerShot = 1.f; //HeatToHeatPerShotCurve.GetRichCurveConst()->Eval(CurrentHeat);
+	CurrentHeat = ClampHeat(CurrentHeat + HeatPerShot);
+
+	// Map the heat to the spread angle
+	CurrentSpreadAngle = HeatToSpreadCurve.GetRichCurveConst()->Eval(CurrentHeat);
+
+}
+
 
 void UInventoryItemInstance::TryRemoveEffects(AActor* inOwner) {
 
@@ -222,5 +309,73 @@ void UInventoryItemInstance::TryRemoveEffects(AActor* inOwner) {
 	}
 
 	OnGoingItemAddedEffectHandles.Empty();
+
+}
+
+/* UOBJECT ALWAYS returns nullptr GetWorld() */
+UWorld* UInventoryItemInstance::GetWorld() const
+{
+	if (APawn* OwningPawn = GetPawn())
+	{
+		return OwningPawn->GetWorld();
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+APawn* UInventoryItemInstance::GetPawn() const
+{
+
+	if (OwningPlayerState) {
+		if (Cast<APlayerStateBase>(OwningPlayerState)) {
+
+			return Cast<APlayerStateBase>(OwningPlayerState)->GetControlledPawn();
+
+		}
+	}
+	return nullptr;
+
+	
+}
+
+
+void UInventoryItemInstance::UpdateFiringTime() {
+	
+	if (OwningPlayerState) {
+
+		UE_LOG(LogTemp, Warning, TEXT("OWNER OF THIS ITEM INSTANCE: %s"), *OwningPlayerState->GetName());
+	}
+
+	UWorld* World = GetWorld();
+	if (World) {
+
+		
+		TimeLastFired = World->GetTimeSeconds();
+	}
+	else {
+		UE_LOG(LogTemp, Warning, TEXT(" DIDNT  GET WORLD IN UPDATE FIRIN GTIME"));
+	}
+
+}
+
+float UInventoryItemInstance::GetTimeSinceLastInteractedWith() const
+{
+	
+	UWorld* World = GetWorld();
+	check(World);
+	const double WorldTime = World->GetTimeSeconds();
+
+	double Result = WorldTime - TimeLastEquipped;
+
+	if (TimeLastFired > 0.0)
+	{
+		const double TimeSinceFired = WorldTime - TimeLastFired;
+		Result = FMath::Min(Result, TimeSinceFired);
+	}
+
+	return Result;
+	
 
 }

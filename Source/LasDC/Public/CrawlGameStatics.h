@@ -27,6 +27,11 @@ public:
 		static const UItemStaticData* GetItemStaticData(TSubclassOf<UItemStaticData> ItemDataClass);
 
 
+	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
+		static void ApplyDirectDamage(UObject* WorldContextObject, AActor* DamageCauser, AActor* DamageTarget, float DamageAmount,
+			TArray<TSubclassOf<UGameplayEffect>> DamageEffects);
+
+
 	//global function ni kaikki ketk‰ haluaa teh‰ radial damage ni voi k‰ytt‰‰ t‰t‰
 
 	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
@@ -37,4 +42,11 @@ public:
 	//LaucnHprojectile
 	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
 	static AProjectileBase* LaunchProjectile(UObject* WorldContextObject, TSubclassOf<UProjectileStaticData> ProjectileDataClass, FTransform Transform, AActor* Owner, APawn* Instigator);
+	
+
+
+	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
+	static AProjectileBase* LaunchProjectileActor(UObject* WorldContextObject, TSubclassOf<AProjectileBase> ProjectileActorClass, FTransform Transform, AActor* Owner, APawn* Instigator);
+
+
 };

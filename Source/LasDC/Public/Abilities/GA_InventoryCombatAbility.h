@@ -24,6 +24,7 @@ public:
 	UFUNCTION(BlueprintPure)
 	FGameplayEffectSpecHandle GetWeaponEffectSpec(const FHitResult& InHitResult);
 
+	/* F*/
 	UFUNCTION(BlueprintPure)
 	const bool GetWeaponToFocusTraceResult(float TraceDistance, ETraceTypeQuery TraceType, FHitResult& OutHitResult);
 
@@ -32,5 +33,16 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void DecreaseAmmo();
+
+	UFUNCTION(BlueprintCallable)
+	FTransform GetFireDirection(const FHitResult& TraceHitResult);
+
+	UPROPERTY(EditAnywhere, Category = "Weapon")
+	bool UseAmmo = true;
+
+	//Trace from center of the screen! not from character like WeaponToFocusTrace
+	UFUNCTION(BlueprintCallable)
+		void TraceUnderCrosshairs(FHitResult& TraceHitResult, FTransform& HitDirectionRotation );
+
 
 };
